@@ -4,6 +4,9 @@ import { useEffect, useRef } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
+// O worker do MapLibre é servido como arquivo estático (o bundler não consegue embuti-lo)
+if (typeof window !== "undefined") maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
+
 export type MapPoint = { id: string; lat: number; lng: number; label?: string; title: string; tone?: "blue" | "teal" | "navy" | "warn" | "gray"; big?: boolean };
 
 const TONES = { blue: "#205BFF", teal: "#11C2C8", navy: "#0A1F4C", warn: "#F59E0B", gray: "#8A92A6" };
