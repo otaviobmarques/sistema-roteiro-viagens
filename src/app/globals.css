@@ -1,26 +1,73 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Identidade Rotta 365 (seção 11.1): claro e futurista */
+@theme {
+  --color-navy: #0a1f4c;
+  --color-blue: #205bff;
+  --color-blue-600: #1a4fe0;
+  --color-blue-50: #eef3ff;
+  --color-teal: #11c2c8;
+  --color-teal-50: #e7f9fa;
+  --color-gray: #5d6477;
+  --color-ice: #f5f7fb;
+  --color-line: #e3e8f2;
+  --color-danger: #d92d4a;
+  --color-danger-50: #fdecef;
+  --color-warn: #b7791f;
+  --color-warn-50: #fff6e5;
+  --color-ok: #138a5b;
+  --color-ok-50: #e6f6ef;
+
+  --font-display: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
+  --radius-3xl: 22px;
+  --shadow-card: 0 1px 2px rgba(10, 31, 76, 0.04), 0 8px 24px -12px rgba(32, 91, 255, 0.18);
+  --shadow-pop: 0 12px 40px -12px rgba(10, 31, 76, 0.28);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html { background: var(--color-ice); color: var(--color-navy); }
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  background-color: var(--color-ice);
+  background-image:
+    radial-gradient(circle at 0% 100%, rgba(17, 194, 200, 0.10), transparent 32%),
+    radial-gradient(circle at 100% 0%, rgba(32, 91, 255, 0.10), transparent 30%),
+    radial-gradient(rgba(10, 31, 76, 0.06) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 22px 22px;
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
 }
+
+h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0.02em; }
+
+@layer components {
+  .card { @apply rounded-2xl border border-line bg-white shadow-[var(--shadow-card)]; }
+  .glass { @apply rounded-2xl border border-white/60 bg-white/75 backdrop-blur-md shadow-[var(--shadow-card)]; }
+  .label { @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-gray; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .btn { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply btn bg-blue text-white shadow-[0_8px_20px_-8px_rgba(32,91,255,0.7)] hover:bg-blue-600; }
+  .btn-secondary { @apply btn border border-line bg-white text-navy hover:border-blue/40 hover:bg-blue-50; }
+  .btn-ghost { @apply btn text-navy hover:bg-blue-50; }
+  .btn-danger { @apply btn border border-danger/30 bg-white text-danger hover:bg-danger-50; }
+  .btn-sm { @apply min-h-9 rounded-lg px-3 text-[13px]; }
+  .input { @apply min-h-11 w-full rounded-xl border border-line bg-white px-3 text-sm text-navy placeholder:text-gray/60 focus:border-blue focus:outline-none focus:ring-4 focus:ring-blue/10; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-medium text-navy; }
+  .pino-border {
+    border: 1.5px solid transparent;
+    background: linear-gradient(#fff, #fff) padding-box, linear-gradient(90deg, #205bff, #11c2c8) border-box;
+  }
+  .hero-gradient { background: linear-gradient(135deg, #1a4fe0 0%, #205bff 45%, #3b7bff 100%); }
+}
+
+@media print {
+  body { background: #fff !important; }
+  .no-print { display: none !important; }
+  .card { box-shadow: none !important; break-inside: avoid; }
+}
+
+.maplibregl-ctrl-attrib { font-size: 10px; }
