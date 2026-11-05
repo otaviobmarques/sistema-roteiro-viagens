@@ -163,11 +163,13 @@ async function nominatimSlot() {
   if (wait) await new Promise((r) => setTimeout(r, wait));
 }
 
-async function fromNominatim(city: string, country: string | null): Promise<OsmElement[]> {
+async function fromNominatim(city: string, country: string | null, deadlineMs = 24000): Promise<OsmElement[]> {
+  const deadline = Date.now() + deadlineMs;
   const where = country ? `${city}, ${country}` : city;
-  const cats = ["restaurant", "cafe", "hotel", "hostel", "guest house", "museum", "viewpoint", "attraction", "bar"];
+  const cats = ["restaurant", "hotel", "museum", "cafe", "hostel", "attraction", "viewpoint", "guest house"];
   const out: OsmElement[] = [];
   for (const cat of cats) {
+    if (Date.now() > deadline - 2000) break; // devolve o que já tem
     await nominatimSlot();
     try {
       const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${cat} in ${where}`)}&format=jsonv2&limit=40&extratags=1&namedetails=1&accept-language=pt-BR`;
@@ -227,7 +229,7 @@ export async function getCandidates(supabase: SupabaseClient, city: string, lat:
   const [osm, wd, nom] = await Promise.allSettled([
     withTimeout(fromOverpass(lat, lng, opts.radius ?? 6000), 12000),
     withTimeout(fromWikidata(lat, lng, (opts.radius ?? 6000) / 1000), 15000),
-    withTimeout(fromNominatim(city, opts.country ?? null), 20000),
+    fromNominatim(city, opts.country ?? null, 24000),
   ]);
   const nomEls = nom.status === "fulfilled" ? nom.value : [];
   const osmEls = [...(osm.status === "fulfilled" ? osm.value.elements : []), ...nomEls];
