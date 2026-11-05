@@ -41,7 +41,7 @@ export default function Landing() {
             ))}
           </div>
         </div>
-        <div className="relative flex justify-center">
+        <div className="relative flex justify-center lg:justify-end">
           <div className="card w-full max-w-md p-4">
             <div className="flex items-center justify-between"><span className="label">Europa · 20 dias</span><span className="mono rounded-lg bg-blue px-2 py-0.5 text-sm font-semibold text-white">94</span></div>
             <div className="mt-3 flex overflow-hidden rounded-lg text-[11px] font-semibold text-white">
@@ -56,7 +56,7 @@ export default function Landing() {
             </div>
             <div className="glass mt-3 flex items-center gap-2 p-3 text-sm"><PinoAvatar mood="partiu" size={28} /><div><b>Partiu!</b> Saia em 12 min · trem para Sintra</div></div>
           </div>
-          <PinoFull size={150} className="absolute -bottom-6 -left-2 hidden drop-shadow-xl md:block" />
+          <PinoFull size={130} className="absolute -bottom-10 left-0 hidden drop-shadow-xl lg:block" />
         </div>
       </section>
 

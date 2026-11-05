@@ -42,7 +42,7 @@ export function GroupClient(props: {
   const log = (action: string) => supabase.from("activity_log").insert({ trip_id: trip.id, user_id: userId, action });
 
   const reloadMembers = async () => {
-    const { data } = await supabase.from("trip_members").select("*, profiles(name, avatar_url, pix_key)").eq("trip_id", trip.id).order("joined_at");
+    const { data } = await supabase.from("trip_members").select("*, profiles!trip_members_user_id_fkey(name, avatar_url, pix_key)").eq("trip_id", trip.id).order("joined_at");
     setMembers((data ?? []) as Member[]);
   };
 
