@@ -44,24 +44,61 @@ body {
 
 h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0.02em; }
 
-@layer components {
-  .card { @apply rounded-2xl border border-line bg-white shadow-[var(--shadow-card)]; }
-  .glass { @apply rounded-2xl border border-white/60 bg-white/75 backdrop-blur-md shadow-[var(--shadow-card)]; }
-  .label { @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-gray; }
-  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-  .btn { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue disabled:cursor-not-allowed disabled:opacity-50; }
-  .btn-primary { @apply btn bg-blue text-white shadow-[0_8px_20px_-8px_rgba(32,91,255,0.7)] hover:bg-blue-600; }
-  .btn-secondary { @apply btn border border-line bg-white text-navy hover:border-blue/40 hover:bg-blue-50; }
-  .btn-ghost { @apply btn text-navy hover:bg-blue-50; }
-  .btn-danger { @apply btn border border-danger/30 bg-white text-danger hover:bg-danger-50; }
-  .btn-sm { @apply min-h-9 rounded-lg px-3 text-[13px]; }
-  .input { @apply min-h-11 w-full rounded-xl border border-line bg-white px-3 text-sm text-navy placeholder:text-gray/60 focus:border-blue focus:outline-none focus:ring-4 focus:ring-blue/10; }
-  .chip { @apply inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-medium text-navy; }
-  .pino-border {
-    border: 1.5px solid transparent;
+@utility card {
+  @apply rounded-2xl border border-line bg-white shadow-[var(--shadow-card)];
+}
+
+@utility glass {
+  @apply rounded-2xl border border-white/60 bg-white/75 backdrop-blur-md shadow-[var(--shadow-card)];
+}
+
+@utility label {
+  @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-gray;
+}
+
+@utility mono {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+}
+
+@utility btn {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@utility btn-primary {
+  @apply btn bg-blue text-white shadow-[0_8px_20px_-8px_rgba(32,91,255,0.7)] hover:bg-blue-600;
+}
+
+@utility btn-secondary {
+  @apply btn border border-line bg-white text-navy hover:border-blue/40 hover:bg-blue-50;
+}
+
+@utility btn-ghost {
+  @apply btn text-navy hover:bg-blue-50;
+}
+
+@utility btn-danger {
+  @apply btn border border-danger/30 bg-white text-danger hover:bg-danger-50;
+}
+
+@utility btn-sm {
+  @apply min-h-9 rounded-lg px-3 text-[13px];
+}
+
+@utility input {
+  @apply min-h-11 w-full rounded-xl border border-line bg-white px-3 text-sm text-navy placeholder:text-gray/60 focus:border-blue focus:outline-none focus:ring-4 focus:ring-blue/10;
+}
+
+@utility chip {
+  @apply inline-flex items-center gap-1 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-medium text-navy;
+}
+
+@utility pino-border {
+  border: 1.5px solid transparent;
     background: linear-gradient(#fff, #fff) padding-box, linear-gradient(90deg, #205bff, #11c2c8) border-box;
-  }
-  .hero-gradient { background: linear-gradient(135deg, #1a4fe0 0%, #205bff 45%, #3b7bff 100%); }
+}
+
+@utility hero-gradient {
+  background: linear-gradient(135deg, #1a4fe0 0%, #205bff 45%, #3b7bff 100%);
 }
 
 @media print {

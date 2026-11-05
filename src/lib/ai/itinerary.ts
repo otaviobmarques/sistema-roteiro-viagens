@@ -383,3 +383,69 @@ export function travelBetween(a: { lat: number; lng: number }, b: { lat: number;
 }
 
 export { fromMin, daysBetween };
+
+// ---------- Refazer um dia (RF-024): refazer, deixar mais leve ou mais barato ----------
+export async function redoDay(supabase: SupabaseClient, tripId: string, dayId: string, mode: "refazer" | "leve" | "barato", userId: string) {
+  const { data: day } = await supabase.from("days").select("*").eq("id", dayId).eq("trip_id", tripId).single();
+  if (!day) throw new Error("Dia não encontrado");
+  const [{ data: trip }, { data: prefs }, { data: dest }, { data: current }, { data: others }] = await Promise.all([
+    supabase.from("trips").select("*").eq("id", tripId).single(),
+    supabase.from("trip_preferences").select("*").eq("trip_id", tripId).maybeSingle(),
+    supabase.from("trip_destinations").select("*").eq("id", day.destination_id).maybeSingle(),
+    supabase.from("itinerary_items").select("*").eq("day_id", dayId).order("position"),
+    supabase.from("itinerary_items").select("place_id").eq("trip_id", tripId).neq("day_id", dayId),
+  ]);
+  if (!dest?.lat) throw new Error("Destino sem localização");
+  const profile = ((prefs?.travel_profile as TravelProfile) ?? "classica");
+  const interests = (prefs?.interests as Record<string, number>) ?? {};
+  const used = new Set((others ?? []).map((o) => o.place_id).filter(Boolean));
+  const { candidates } = await getCandidates(supabase, dest.city, dest.lat, dest.lng);
+  const sl = shortlist(candidates.filter((c) => !used.has(c.id)), interests, mode === "barato" ? "mochilao" : profile, 2);
+  const codes = new Map<string, Candidate>();
+  const keep = (current ?? []).filter((i) => i.anchor || i.must_have || i.kind === "hospedagem" || i.kind === "trajeto");
+  const instruction = mode === "leve" ? "Deixe o dia MAIS LEVE: no máximo 3 atividades além das refeições, mais tempo em cada uma." : mode === "barato" ? "Deixe o dia MAIS BARATO: priorize gratuitos e opções do perfil Mochilão." : "Proponha uma versão NOVA e diferente para o dia.";
+  const prompt = `DESTINO: ${dest.city}. DATA: ${day.date}. PERFIL: ${TRAVEL_PROFILES[profile].label}. RITMO: ${trip.pace}. INTERESSES: ${interestsText(interests)}.
+${instruction}
+MANTENHA (não mexa, já estão no dia): ${keep.map((k) => `${k.title}${k.anchor ? ` (fixo ${k.anchor_time})` : ""}`).join("; ") || "nada"}.
+ATUAL: ${(current ?? []).map((i) => i.title).join(", ") || "vazio"}.
+CANDIDATOS (código | nome | tipo | interesse | preço | horário):
+${candidateLines(sl, codes, 0)}`;
+  const { data, usage } = await askJSON({ schema: z.object({ day: DaySchema }), system: SYSTEM, prompt, effort: "low", maxTokens: 12000 });
+  const rows = data.day.items
+    .map((it) => ({ it, cand: it.candidate ? codes.get(it.candidate) ?? null : null }))
+    .filter(({ it, cand }) => cand || ["nota", "livre"].includes(it.kind))
+    .filter(({ cand }) => !cand || !keep.some((k) => k.place_id === cand.id));
+  // apaga os itens não travados e grava os novos depois dos mantidos
+  const removable = (current ?? []).filter((i) => !keep.includes(i)).map((i) => i.id);
+  if (removable.length) await supabase.from("itinerary_items").delete().in("id", removable);
+  const all: ScheduleItem[] = [
+    ...keep.map((k) => ({ ...k })),
+    ...rows.map(({ it, cand }) => ({
+      id: crypto.randomUUID(), title: cand?.name ?? it.title, kind: it.kind, lat: cand?.lat ?? null, lng: cand?.lng ?? null, duration_min: Math.max(15, Math.min(600, it.duration_min)),
+      anchor: false, anchor_time: null, opening_hours: cand?.opening_hours ?? null, outdoor: cand?.outdoor ?? false, cost_cents: Math.round(it.cost_brl * 100),
+      _cand: cand, _why: it.why,
+    })),
+  ];
+  all.forEach((it, idx) => { if (idx > 0 && it.kind !== "trajeto") it.transport_mode = suggestMode(ll(all[idx - 1]), ll(it), profile); });
+  const opt = optimizeDay(all, { date: day.date, dayStart: day.day_start || "09:00", pace: trip.pace });
+  const ordered = opt.changed ? opt.items : all;
+  const res = cascade(ordered, { date: day.date, dayStart: day.day_start || "09:00", pace: trip.pace });
+  for (const [idx, it] of ordered.entries()) {
+    const r = res.items[idx];
+    const extra = it as ScheduleItem & { _cand?: Candidate | null; _why?: string };
+    if (keep.some((k) => k.id === it.id)) {
+      await supabase.from("itinerary_items").update({ position: idx, start_time: r.start, travel_min: r.travel_before }).eq("id", it.id);
+    } else {
+      const cand = extra._cand ?? null;
+      const fit = cand ? fitScore({ interest: cand.interest, interests, itemPriceLevel: cand.price_level, profile, contextBonus: 0.7 }) : null;
+      await supabase.from("itinerary_items").insert({
+        id: it.id, trip_id: tripId, day_id: dayId, kind: it.kind, title: it.title, place_id: cand?.id ?? null, lat: it.lat, lng: it.lng, category: cand?.category ?? null,
+        interest_category: cand?.interest ?? null, start_time: r.start, travel_min: r.travel_before, duration_min: it.duration_min, transport_mode: it.transport_mode ?? "a_pe",
+        cost_cents: it.cost_cents ?? 0, opening_hours: it.opening_hours, outdoor: !!it.outdoor, travel_profile: profile,
+        score: cand && fit != null ? forYouScore(Math.min(10, 4 + cand.notability * 0.6), fit) : null, why: extra._why ?? null, verified: !!cand, position: idx, created_by: userId,
+      });
+    }
+  }
+  await supabase.from("days").update({ title: data.day.title }).eq("id", dayId);
+  return { usage, score: res.score, title: data.day.title };
+}
