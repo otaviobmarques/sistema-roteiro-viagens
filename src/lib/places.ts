@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const UA = "Rotta365/1.0 (roteiros de viagem)";
-const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter"];
+const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
 
 export type Candidate = {
   id: string; // uuid em places
@@ -22,6 +22,8 @@ export type Candidate = {
   website: string | null;
   city: string;
 };
+
+export let lastFetchInfo: Record<string, unknown> = {};
 
 export type Geo = { name: string; country: string | null; lat: number; lng: number; capital: boolean; bbox?: number[] };
 
@@ -103,7 +105,7 @@ function notability(tags: Record<string, string>): number {
 function overpassQuery(lat: number, lng: number, radius: number) {
   const r = radius;
   const restaurantRadius = Math.min(r, 3500);
-  return `[out:json][timeout:25];
+  return `[out:json][timeout:18];
 (
   nwr["tourism"~"^(museum|gallery|viewpoint|zoo|aquarium|theme_park|attraction)$"]["name"](around:${r},${lat},${lng});
   nwr["historic"~"^(castle|fort|monument|memorial|ruins|archaeological_site)$"]["name"]["wikidata"](around:${r},${lat},${lng});
@@ -117,18 +119,26 @@ function overpassQuery(lat: number, lng: number, radius: number) {
 out center tags 900;`;
 }
 
-async function fromOverpass(city: string, lat: number, lng: number, radius: number) {
-  const body = new URLSearchParams({ data: overpassQuery(lat, lng, radius) });
-  let lastErr: unknown;
-  for (const url of OVERPASS) {
-    try {
-      const data = await fetchJSON(url, { method: "POST", body, headers: { "Content-Type": "application/x-www-form-urlencoded" } }, 28000);
-      return (data.elements ?? []) as { type: string; id: number; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags: Record<string, string> }[];
-    } catch (e) {
-      lastErr = e;
-    }
+type OsmElement = { type: string; id: number; lat?: number; lon?: number; center?: { lat: number; lon: number }; tags: Record<string, string> };
+
+/** Consulta os espelhos do Overpass em paralelo e fica com o primeiro que responder. */
+async function fromOverpass(lat: number, lng: number, radius: number): Promise<OsmElement[]> {
+  const body = new URLSearchParams({ data: overpassQuery(lat, lng, radius) }).toString();
+  const ctrl = new AbortController();
+  try {
+    const first = await Promise.any(
+      OVERPASS.map(async (url) => {
+        const res = await fetch(url, { method: "POST", body, signal: ctrl.signal, headers: { "User-Agent": UA, "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" } });
+        if (!res.ok) throw new Error(String(res.status));
+        const data = await res.json();
+        if (!Array.isArray(data.elements)) throw new Error("sem dados");
+        return data.elements as OsmElement[];
+      }),
+    );
+    return first;
+  } finally {
+    ctrl.abort();
   }
-  throw lastErr ?? new Error("overpass indisponível");
 }
 
 /** Reserva: atrações notáveis do Wikidata em volta do ponto. */
@@ -137,7 +147,7 @@ async function fromWikidata(lat: number, lng: number, radiusKm: number) {
     SERVICE wikibase:around { ?item wdt:P625 ?coord. bd:serviceParam wikibase:center "Point(${lng} ${lat})"^^geo:wktLiteral. bd:serviceParam wikibase:radius "${radiusKm}". }
     ?item wdt:P31 ?type. VALUES ?type { wd:Q33506 wd:Q570116 wd:Q4989906 wd:Q23413 wd:Q16970 wd:Q22698 wd:Q2977 wd:Q1076486 wd:Q207694 wd:Q40080 }
     SERVICE wikibase:label { bd:serviceParam wikibase:language "pt,en". }
-  } LIMIT 80`;
+  } LIMIT 150`;
   const data = await fetchJSON(`https://query.wikidata.org/sparql?format=json&query=${encodeURIComponent(q)}`, {}, 20000);
   const typeMap: Record<string, string> = { museu: "museum", "atração turística": "attraction" };
   return (data.results?.bindings ?? []).map((b: Record<string, { value: string }>) => {
@@ -163,21 +173,21 @@ export async function getCandidates(supabase: SupabaseClient, city: string, lat:
   const cityKey = city.toLowerCase().trim();
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
   const { data: cached } = await supabase.from("places").select("*").eq("city", cityKey).gte("updated_at", since).limit(900);
-  if (cached && cached.length >= 40) return { candidates: cached.map(rowToCandidate), source: "cache" };
+  // cache só vale se tiver variedade (atrações, comida e hospedagem), senão busca de novo
+  const types = new Set((cached ?? []).map((c) => (c.tags as { type?: string })?.type));
+  if (cached && cached.length >= 40 && types.has("restaurante") && types.has("hospedagem")) return { candidates: cached.map(rowToCandidate), source: "cache" };
 
-  let elements: Awaited<ReturnType<typeof fromOverpass>> = [];
-  let source: "osm" | "wikidata" | "none" = "none";
-  try {
-    elements = await fromOverpass(cityKey, lat, lng, opts.radius ?? 7000);
-    source = "osm";
-  } catch {
-    try {
-      elements = await fromWikidata(lat, lng, (opts.radius ?? 7000) / 1000);
-      source = "wikidata";
-    } catch {
-      elements = [];
-    }
-  }
+  // OSM e Wikidata em paralelo, com teto de tempo; junta o que vier
+  const withTimeout = <T,>(p: Promise<T>, ms: number) => Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error("tempo esgotado")), ms))]);
+  const [osm, wd] = await Promise.allSettled([
+    withTimeout(fromOverpass(lat, lng, opts.radius ?? 6000), 20000),
+    withTimeout(fromWikidata(lat, lng, (opts.radius ?? 6000) / 1000), 15000),
+  ]);
+  const osmEls = osm.status === "fulfilled" ? osm.value : [];
+  const wdEls = wd.status === "fulfilled" ? (wd.value as OsmElement[]) : [];
+  const elements: OsmElement[] = [...osmEls, ...wdEls];
+  const source: "osm" | "wikidata" | "none" = osmEls.length ? "osm" : wdEls.length ? "wikidata" : "none";
+  lastFetchInfo = { osm: osm.status === "fulfilled" ? osmEls.length : String((osm as PromiseRejectedResult).reason?.message ?? osm.status), wikidata: wd.status === "fulfilled" ? wdEls.length : String((wd as PromiseRejectedResult).reason?.message ?? wd.status) };
 
   const rows = [] as Record<string, unknown>[];
   const seen = new Set<string>();
