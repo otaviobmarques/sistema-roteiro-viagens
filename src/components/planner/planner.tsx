@@ -5,6 +5,7 @@ import clsx from "clsx";
 import { Wand2, Undo2, Redo2, AlertTriangle, CloudRain, Sun, Lightbulb, RefreshCw, Feather, PiggyBank, Loader2, MessageCircle } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { cascade, optimizeDay, type Conflict } from "@/lib/domain/schedule";
+import { suggestMode } from "@/lib/domain/geo";
 import { fmtDuration, weekdayShort, fmtDateShort } from "@/lib/domain/time";
 import { fmtBRL } from "@/lib/domain/settle";
 import { weatherLabel } from "@/lib/context";
@@ -148,7 +149,12 @@ export function Planner(p: Props) {
   };
 
   const addItem = async (draft: Partial<Item>, toDay: string | null) => {
-    const pos = items.filter((i) => i.day_id === toDay).length;
+    const sameDay = items.filter((i) => i.day_id === toDay).sort((a, b) => a.position - b.position);
+    const pos = sameDay.length;
+    const prev = sameDay.at(-1);
+    if (!draft.transport_mode && prev?.lat != null && draft.lat != null && draft.lng != null) {
+      draft = { ...draft, transport_mode: suggestMode({ lat: prev.lat, lng: prev.lng! }, { lat: draft.lat, lng: draft.lng }, p.profile) };
+    }
     savingRef.current = true;
     const { data, error } = await sb.from("itinerary_items").insert({ trip_id: p.trip.id, day_id: toDay, position: pos, created_by: p.userId, duration_min: 60, kind: "lugar", ...draft }).select("*").single();
     if (error) { setMsg({ tone: "danger", text: error.message }); return; }
