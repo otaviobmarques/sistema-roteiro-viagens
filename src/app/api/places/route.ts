@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   if (!q || q.length < 2) return NextResponse.json({ error: "Digite uma cidade." }, { status: 400 });
   const geo = await geocode(q);
   if (!geo) return NextResponse.json({ error: "Não encontrei essa cidade. Tente com o país, ex.: Porto, Portugal." }, { status: 404 });
-  const { candidates, source } = await getCandidates(supabase, geo.name, geo.lat, geo.lng);
+  const { candidates, source } = await getCandidates(supabase, geo.name, geo.lat, geo.lng, { country: geo.country });
   return NextResponse.json({
     city: geo.name,
     country: geo.country,

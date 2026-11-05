@@ -181,7 +181,7 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
   // Candidatos (base própria), clima e feriados em paralelo
   const year = Number(String(trip.start_date).slice(0, 4));
   const [candSets, weathers, hols] = await Promise.all([
-    Promise.all(inputs.map((d) => getCandidates(supabase, d.city, d.lat, d.lng))),
+    Promise.all(inputs.map((d) => getCandidates(supabase, d.city, d.lat, d.lng, { country: d.country }))),
     Promise.all(inputs.map((d) => weather(d.lat, d.lng, d.start, addDays(d.start, d.days - 1)))),
     Promise.all(inputs.map((d) => holidays(d.country, year))),
   ]);
@@ -399,7 +399,7 @@ export async function redoDay(supabase: SupabaseClient, tripId: string, dayId: s
   const profile = ((prefs?.travel_profile as TravelProfile) ?? "classica");
   const interests = (prefs?.interests as Record<string, number>) ?? {};
   const used = new Set((others ?? []).map((o) => o.place_id).filter(Boolean));
-  const { candidates } = await getCandidates(supabase, dest.city, dest.lat, dest.lng);
+  const { candidates } = await getCandidates(supabase, dest.city, dest.lat, dest.lng, { country: dest.country });
   const sl = shortlist(candidates.filter((c) => !used.has(c.id)), interests, mode === "barato" ? "mochilao" : profile, 2);
   const codes = new Map<string, Candidate>();
   const keep = (current ?? []).filter((i) => i.anchor || i.must_have || i.kind === "hospedagem" || i.kind === "trajeto");

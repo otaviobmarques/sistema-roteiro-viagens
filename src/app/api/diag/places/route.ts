@@ -26,7 +26,7 @@ export async function GET(req: Request) {
   const g = await geocode(city);
   const t1 = Date.now();
   if (!g) return NextResponse.json({ error: "geocode falhou", ms: t1 - t0 });
-  const r = await getCandidates(supabase, g.name, g.lat, g.lng);
+  const r = await getCandidates(supabase, g.name, g.lat, g.lng, { country: g.country });
   const byType = r.candidates.reduce<Record<string, number>>((a, c) => ({ ...a, [c.type]: (a[c.type] ?? 0) + 1 }), {});
   return NextResponse.json({ city: g.name, geocodeMs: t1 - t0, candidatesMs: Date.now() - t1, source: r.source, total: r.candidates.length, byType, fetch: lastFetchInfo });
 }

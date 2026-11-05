@@ -51,7 +51,7 @@ export async function POST(req: Request) {
   const [arr, dep] = await Promise.all([b.arrival ? geocode(b.arrival) : null, b.departure ? geocode(b.departure) : null]);
 
   // Candidatos da base própria → peso de cada destino (quantos lugares combinam com os interesses)
-  const candSets = await Promise.all(geos.map((g) => getCandidates(supabase, g!.name, g!.lat, g!.lng).catch(() => ({ candidates: [], source: "none" as const }))));
+  const candSets = await Promise.all(geos.map((g) => getCandidates(supabase, g!.name, g!.lat, g!.lng, { country: g!.country }).catch(() => ({ candidates: [], source: "none" as const }))));
   const dests = geos.map((g, i) => {
     const cands = candSets[i].candidates.filter((c) => c.type === "atracao" || c.type === "experiencia");
     const weightFromInterests = cands.reduce((s, c) => s + (c.interest ? (b.interests[c.interest] ?? 0) : 0) + c.notability / 10, 0);

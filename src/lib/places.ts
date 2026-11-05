@@ -40,6 +40,7 @@ async function fetchJSON(url: string, init: RequestInit = {}, timeoutMs = 20000)
 }
 
 export async function geocode(q: string): Promise<Geo | null> {
+  await nominatimSlot();
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&accept-language=pt-BR&addressdetails=1&extratags=1`;
   try {
     const data = await fetchJSON(url, {}, 12000);
@@ -149,6 +150,42 @@ async function fromOverpass(lat: number, lng: number, radius: number) {
   return { elements, info };
 }
 
+/**
+ * Nominatim (OpenStreetMap) por categoria: comida, hospedagem e atrações principais.
+ * Respeita a política de uso: 1 requisição por segundo, poucas por cidade, resultado guardado na base própria.
+ */
+// fila global: no máximo 1 requisição por segundo ao Nominatim nesta instância
+let nominatimNext = 0;
+async function nominatimSlot() {
+  const now = Date.now();
+  const wait = Math.max(0, nominatimNext - now);
+  nominatimNext = Math.max(now, nominatimNext) + 1100;
+  if (wait) await new Promise((r) => setTimeout(r, wait));
+}
+
+async function fromNominatim(city: string, country: string | null): Promise<OsmElement[]> {
+  const where = country ? `${city}, ${country}` : city;
+  const cats = ["restaurant", "cafe", "hotel", "hostel", "guest house", "museum", "viewpoint", "attraction", "bar"];
+  const out: OsmElement[] = [];
+  for (const cat of cats) {
+    await nominatimSlot();
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${cat} in ${where}`)}&format=jsonv2&limit=40&extratags=1&namedetails=1&accept-language=pt-BR`;
+      const data = (await fetchJSON(url, {}, 8000)) as { osm_type: string; osm_id: number; lat: string; lon: string; category: string; type: string; name: string; extratags?: Record<string, string>; namedetails?: Record<string, string> }[];
+      for (const r of data) {
+        if (!r.name) continue;
+        out.push({
+          type: r.osm_type, id: r.osm_id, lat: Number(r.lat), lon: Number(r.lon),
+          tags: { name: r.namedetails?.["name:pt"] || r.name, [r.category]: r.type, ...(r.extratags ?? {}) },
+        });
+      }
+    } catch {
+      // segue com as outras categorias
+    }
+  }
+  return out;
+}
+
 /** Reserva: atrações notáveis do Wikidata em volta do ponto. */
 async function fromWikidata(lat: number, lng: number, radiusKm: number) {
   const q = `SELECT ?item ?itemLabel ?coord ?typeLabel WHERE {
@@ -177,7 +214,7 @@ async function fromWikidata(lat: number, lng: number, radiusKm: number) {
  * Candidatos de um destino. Usa a base própria (places) se já tiver lugares suficientes dos últimos 30 dias;
  * senão busca no OSM (e no Wikidata como reserva) e grava na base.
  */
-export async function getCandidates(supabase: SupabaseClient, city: string, lat: number, lng: number, opts: { radius?: number } = {}): Promise<{ candidates: Candidate[]; source: "cache" | "osm" | "wikidata" | "none" }> {
+export async function getCandidates(supabase: SupabaseClient, city: string, lat: number, lng: number, opts: { radius?: number; country?: string | null } = {}): Promise<{ candidates: Candidate[]; source: "cache" | "osm" | "wikidata" | "none" }> {
   const cityKey = city.toLowerCase().trim();
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
   const { data: cached } = await supabase.from("places").select("*").eq("city", cityKey).gte("updated_at", since).limit(900);
@@ -187,15 +224,19 @@ export async function getCandidates(supabase: SupabaseClient, city: string, lat:
 
   // OSM e Wikidata em paralelo, com teto de tempo; junta o que vier
   const withTimeout = <T,>(p: Promise<T>, ms: number) => Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error("tempo esgotado")), ms))]);
-  const [osm, wd] = await Promise.allSettled([
-    withTimeout(fromOverpass(lat, lng, opts.radius ?? 6000), 20000),
+  const [osm, wd, nom] = await Promise.allSettled([
+    withTimeout(fromOverpass(lat, lng, opts.radius ?? 6000), 12000),
     withTimeout(fromWikidata(lat, lng, (opts.radius ?? 6000) / 1000), 15000),
+    withTimeout(fromNominatim(city, opts.country ?? null), 20000),
   ]);
-  const osmEls = osm.status === "fulfilled" ? osm.value.elements : [];
+  const nomEls = nom.status === "fulfilled" ? nom.value : [];
+  const osmEls = [...(osm.status === "fulfilled" ? osm.value.elements : []), ...nomEls];
   const wdEls = wd.status === "fulfilled" ? (wd.value as OsmElement[]) : [];
-  const elements: OsmElement[] = [...osmEls, ...wdEls];
+  // descarta resultados do Nominatim muito longe do centro (homônimos em outro lugar)
+  const near = (e: OsmElement) => { const la = e.lat ?? e.center?.lat; const lo = e.lon ?? e.center?.lon; return la != null && lo != null && Math.abs(la - lat) < 0.25 && Math.abs(lo - lng) < 0.35; };
+  const elements: OsmElement[] = [...osmEls, ...wdEls].filter(near);
   const source: "osm" | "wikidata" | "none" = osmEls.length ? "osm" : wdEls.length ? "wikidata" : "none";
-  lastFetchInfo = { osm: osm.status === "fulfilled" ? osm.value.info : String((osm as PromiseRejectedResult).reason?.message ?? osm.status), wikidata: wd.status === "fulfilled" ? wdEls.length : String((wd as PromiseRejectedResult).reason?.message ?? wd.status) };
+  lastFetchInfo = { nominatim: nomEls.length, osm: osm.status === "fulfilled" ? osm.value.info : String((osm as PromiseRejectedResult).reason?.message ?? osm.status), wikidata: wd.status === "fulfilled" ? wdEls.length : String((wd as PromiseRejectedResult).reason?.message ?? wd.status) };
 
   const rows = [] as Record<string, unknown>[];
   const seen = new Set<string>();

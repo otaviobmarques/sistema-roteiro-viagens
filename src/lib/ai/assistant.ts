@@ -37,7 +37,7 @@ export async function loadTripContext(supabase: SupabaseClient, tripId: string, 
   const dest = (dests ?? []).find((d) => d.id === day?.destination_id) ?? (dests ?? [])[0];
   let candidates: Candidate[] = [];
   if (dest?.lat != null) {
-    const r = await getCandidates(supabase, dest.city, dest.lat, dest.lng).catch(() => ({ candidates: [] as Candidate[] }));
+    const r = await getCandidates(supabase, dest.city, dest.lat, dest.lng, { country: dest.country }).catch(() => ({ candidates: [] as Candidate[] }));
     candidates = shortlist(r.candidates, (prefs?.interests as Record<string, number>) ?? {}, prefs?.travel_profile ?? "classica", 2).slice(0, 60);
   }
   return { trip, days: (days ?? []) as Day[], items: (items ?? []) as Item[], dest, day, prefs, candidates };
