@@ -45,6 +45,21 @@ export const normCountry = (c: string) => c.normalize("NFD").replace(/[̀-ͯ]/g,
 const isBrazil = (c: string) => /^(brasil|brazil|br)$/.test(normCountry(c));
 const MAX_AGE_DAYS = 90;
 
+// Regras fixas (não dependem da IA): Espaço Schengen e acordos de saúde do Brasil
+const SCHENGEN = new Set(["alemanha", "austria", "belgica", "bulgaria", "croacia", "dinamarca", "eslovaquia", "eslovenia", "espanha", "estonia", "finlandia", "franca", "grecia", "holanda", "paises baixos", "hungria", "islandia", "italia", "letonia", "liechtenstein", "lituania", "luxemburgo", "malta", "noruega", "polonia", "portugal", "republica tcheca", "tchequia", "romenia", "suecia", "suica"]);
+const HEALTH_AGREEMENT = new Set(["portugal", "italia", "cabo verde"]);
+function applyFixedRules(country: string, g: CountryGuide): CountryGuide {
+  const k = normCountry(country);
+  if (SCHENGEN.has(k)) {
+    g.insurance.mandatory = true;
+    g.insurance.requirement = "País do Espaço Schengen: a imigração pode exigir seguro viagem com cobertura médica mínima de € 30 mil, válido em todo o Espaço Schengen e por toda a estadia. Leve a apólice impressa ou no celular.";
+  }
+  if (HEALTH_AGREEMENT.has(k) && !g.health.agreement) {
+    g.health.agreement = "O Brasil tem acordo de saúde com este país: antes de viajar, peça o Certificado de Direito à Assistência Médica (CDAM) no gov.br para ser atendido na rede pública. Ele não substitui o seguro viagem; confirme as regras no gov.br.";
+  }
+  return g;
+}
+
 async function generate(country: string): Promise<CountryGuide> {
   const r = await askJSON({
     schema: GuideSchema,
@@ -53,7 +68,7 @@ async function generate(country: string): Promise<CountryGuide> {
     system: "Você é o Pino, guia de viagem do Rotta 365. Escreve para turistas brasileiros, em português do Brasil, de forma curta, prática e correta. Quando uma regra puder ter mudado recentemente, diga para confirmar no site oficial; nunca invente números ou exigências. Nunca cite nomes de empresas, marcas, operadoras, bancos ou aplicativos comerciais: fale da categoria (\"sua operadora\", \"um eSIM de viagem\", \"app de transporte\"). Programas oficiais de governo (ex.: autorização eletrônica de viagem) podem ser citados.",
     prompt: `Monte o guia "antes de ir" para um turista brasileiro que vai viajar para: ${country}.`,
   });
-  return r.data;
+  return applyFixedRules(country, r.data);
 }
 
 /** Guias dos países da viagem (fora o Brasil), do cache ou gerados na hora em paralelo. Nunca lança erro. */
@@ -65,7 +80,7 @@ export async function countryGuides(supabase: SupabaseClient, countries: (string
   const fresh = (d: string) => Date.now() - new Date(d).getTime() < MAX_AGE_DAYS * 86400000;
   const out = await Promise.all(list.map(async ([key, name]) => {
     const row = byKey.get(key);
-    if (row && fresh(row.updated_at)) return { country: row.display_name, guide: row.data as CountryGuide };
+    if (row && fresh(row.updated_at)) return { country: row.display_name, guide: applyFixedRules(name, row.data as CountryGuide) };
     if (opts.generateMissing === false) return row ? { country: row.display_name, guide: row.data as CountryGuide } : null;
     try {
       const g = await generate(name);
