@@ -31,7 +31,8 @@ export async function typicalClimate(supabase: SupabaseClient, dests: { city: st
       });
       await supabaseAnon().rpc("server_upsert_city_fees", { p_secret: process.env.INTERNAL_SECRET, p_city: key, p_display: d.city, p_data: r.data });
       return { ...r.data, city: d.city, month };
-    } catch {
+    } catch (e) {
+      console.error("climate", (e as Error).message);
       return null;
     }
   }));

@@ -59,7 +59,8 @@ async function aiFees(supabase: SupabaseClient, city: string, country: string | 
       });
       fees = r.data.fees.slice(0, 3);
       await supabaseAnon().rpc("server_upsert_city_fees", { p_secret: process.env.INTERNAL_SECRET, p_city: key, p_display: city, p_data: { fees } });
-    } catch {
+    } catch (e) {
+      console.error("city-fees", city, (e as Error).message);
       fees = [];
     }
   }

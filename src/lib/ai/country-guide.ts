@@ -111,8 +111,9 @@ export async function countryGuides(supabase: SupabaseClient, countries: (string
       const g = await generate(name);
       await supabaseAnon().rpc("server_upsert_country_guide", { p_secret: process.env.INTERNAL_SECRET, p_country: key, p_display: g.country_name || name, p_data: g });
       return { country: g.country_name || name, guide: g };
-    } catch {
-      return row ? { country: row.display_name, guide: row.data as CountryGuide } : null;
+    } catch (e) {
+      console.error("country-guide", name, (e as Error).message);
+      return row ? { country: row.display_name, guide: applyFixedRules(name, row.data as CountryGuide) } : null;
     }
   }));
   return out.filter(Boolean) as { country: string; guide: CountryGuide }[];
