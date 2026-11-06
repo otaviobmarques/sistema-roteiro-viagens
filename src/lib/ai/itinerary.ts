@@ -9,20 +9,21 @@ import { suggestMode, travelMinutes } from "../domain/geo";
 import { addDays, daysBetween, fromMin } from "../domain/time";
 import { fitScore, forYouScore, TRAVEL_PROFILES, INTEREST_CATEGORIES, type TravelProfile } from "../domain/score";
 import { transferLegs } from "../domain/multidest";
+import { normalizeKind, normalizeProfile } from "./normalize";
 
-const KINDS = ["lugar", "atividade", "refeicao", "hospedagem", "nota", "livre"] as const;
+
 const PROFILES = ["mochilao", "classica", "experiencia"] as const;
 
 const OptionSchema = z.object({
   candidate: z.string().describe("código do candidato, ex.: P12"),
-  profile: z.enum(PROFILES),
+  profile: z.string().describe("mochilao, classica ou experiencia"),
   price_brl: z.number().describe("preço estimado por pessoa em reais (hospedagem: por noite, por quarto)"),
   reason: z.string().describe("motivo curto, até 12 palavras"),
 });
 
 const ItemSchema = z.object({
   candidate: z.string().nullable().describe("código do candidato escolhido; null só para nota/livre ou obrigatório fora da lista"),
-  kind: z.enum(KINDS),
+  kind: z.string().describe("um destes: lugar, atividade, refeicao, hospedagem, nota, livre"),
   title: z.string(),
   duration_min: z.number().int(),
   fixed_time: z.string().nullable().describe("HH:MM apenas se o horário for fixo (ingresso com hora, reserva); senão null"),
@@ -115,7 +116,9 @@ ${ctx.isFirst ? "" : "Chegada vinda do destino anterior no primeiro dia: deixe a
 
 CANDIDATOS (código | nome | tipo | interesse | preço | horário):
 ${candidateLines(cands, codes, offset)}`;
-  return askJSON({ schema: DestinationPlanSchema, system: SYSTEM, prompt, effort: "medium", maxTokens: 32000 });
+  const r = await askJSON({ schema: DestinationPlanSchema, system: SYSTEM, prompt, effort: "medium", maxTokens: 32000 });
+  r.data.days.forEach((d) => d.items.forEach((it) => { it.kind = normalizeKind(it.kind); it.options.forEach((o) => { o.profile = normalizeProfile(o.profile); }); }));
+  return r;
 }
 
 type SavedItem = ScheduleItem & {
@@ -361,7 +364,7 @@ function computeProfileTotals(days: { items: SavedItem[] }[], b: TripBriefing, i
 const PreviewSchema = z.object({
   summary: z.string().describe("2 frases com a cara da viagem, na voz do Pino"),
   destinations: z.array(z.object({
-    city: z.string(),
+    city: z.string().describe("nome do destino exatamente como na lista, sem país"),
     highlights: z.array(z.string()).describe("3 destaques curtos, escolhidos entre os candidatos"),
     why_days: z.string().describe("por que esse número de dias, até 18 palavras"),
     est_daily_brl: z.number().describe("gasto estimado por pessoa por dia no perfil, sem hospedagem"),
@@ -411,6 +414,7 @@ ATUAL: ${(current ?? []).map((i) => i.title).join(", ") || "vazio"}.
 CANDIDATOS (código | nome | tipo | interesse | preço | horário):
 ${candidateLines(sl, codes, 0)}`;
   const { data, usage } = await askJSON({ schema: z.object({ day: DaySchema }), system: SYSTEM, prompt, effort: "low", maxTokens: 12000 });
+  data.day.items.forEach((it) => { it.kind = normalizeKind(it.kind); });
   const rows = data.day.items
     .map((it) => ({ it, cand: it.candidate ? codes.get(it.candidate) ?? null : null }))
     .filter(({ it, cand }) => cand || ["nota", "livre"].includes(it.kind))

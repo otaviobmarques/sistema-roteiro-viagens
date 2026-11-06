@@ -2,6 +2,7 @@
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { askJSON, PINO_VOICE } from "./claude";
+import { normalizeKind } from "./normalize";
 import { getCandidates, shortlist, type Candidate } from "../places";
 import { cascade } from "../domain/schedule";
 import type { Item, Day } from "../types";
@@ -14,7 +15,7 @@ export const ActionSchema = z.object({
   position: z.number().int().nullable().describe("posição no dia, 0 = primeiro"),
   candidate: z.string().nullable().describe("código Pxx do lugar (add, ou update trocando o lugar)"),
   title: z.string().nullable(),
-  kind: z.enum(["lugar", "atividade", "refeicao", "hospedagem", "nota", "livre"]).nullable(),
+  kind: z.string().nullable().describe("lugar, atividade, refeicao, hospedagem, nota ou livre"),
   duration_min: z.number().int().nullable(),
   fixed_time: z.string().nullable().describe("HH:MM se for horário fixo"),
 });
@@ -83,5 +84,6 @@ Você conversa sobre a viagem e propõe mudanças como ações estruturadas. Reg
     effort: "low",
     maxTokens: 6000,
   });
+  r.data.actions.forEach((a) => { if (a.kind) a.kind = normalizeKind(a.kind); });
   return { ...r, codes };
 }

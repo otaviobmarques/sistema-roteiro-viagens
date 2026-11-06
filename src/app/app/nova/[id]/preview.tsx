@@ -16,6 +16,11 @@ type AIPreview = {
   destinations: { city: string; highlights: string[]; why_days: string; est_daily_brl: number; est_nightly_brl: number }[];
 } | null;
 
+const sameCity = (a: string, b: string) => {
+  const n = (x: string) => x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\(.*\)/, "").split(",")[0].trim();
+  return n(a) === n(b) || n(a).startsWith(n(b)) || n(b).startsWith(n(a));
+};
+
 const COLORS = ["#205BFF", "#2F6BFF", "#0A1F4C", "#0B7F84", "#11C2C8", "#3A4D7A", "#5B8CFF", "#7FDDE0"];
 const STEPS = ["Buscando lugares reais na base aberta", "Filtrando por qualidade e pelo seu perfil", "Montando os dias com o Pino", "Conferindo horários, trajetos e clima", "Calculando os três perfis de preço"];
 
@@ -80,7 +85,7 @@ export function PreviewClient(props: {
     const people = trip.travelers_adults + trip.travelers_children;
     const rooms = Math.max(1, Math.ceil(trip.travelers_adults / 2));
     return dests.reduce((sum, d) => {
-      const a = ai.destinations.find((x) => x.city.toLowerCase() === d.city.toLowerCase());
+      const a = ai.destinations.find((x) => sameCity(x.city, d.city));
       return a ? sum + (a.est_daily_brl * people + a.est_nightly_brl * rooms) * (d.days ?? 1) * 100 : sum;
     }, 0);
   }, [ai, dests, trip]);
@@ -157,7 +162,7 @@ export function PreviewClient(props: {
 
           <div className="grid gap-3 sm:grid-cols-2">
             {dated.map((d, i) => {
-              const a = ai?.destinations.find((x) => x.city.toLowerCase() === d.city.toLowerCase());
+              const a = ai?.destinations.find((x) => sameCity(x.city, d.city));
               return (
                 <div key={d.id} className={`card p-4 ${d.locked ? "ring-1 ring-teal" : ""}`}>
                   <div className="flex items-start justify-between gap-2">
