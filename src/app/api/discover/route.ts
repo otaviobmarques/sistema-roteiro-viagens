@@ -39,8 +39,12 @@ export async function POST(req: Request) {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return NextResponse.json({ error: "Faça login para usar a prévia grátis." }, { status: 401 });
 
-  const { data: left } = await supabase.rpc("previews_left");
-  if ((left ?? 0) <= 0) return NextResponse.json({ error: "Você usou as prévias grátis de hoje. Volte amanhã ou gere um roteiro completo." }, { status: 429 });
+  // quem tem crédito na carteira não fica preso no limite diário de prévias grátis
+  const [{ data: left }, { data: wallet }] = await Promise.all([
+    supabase.rpc("previews_left"),
+    supabase.from("credit_wallets").select("balance").eq("user_id", auth.user.id).maybeSingle(),
+  ]);
+  if ((left ?? 0) <= 0 && (wallet?.balance ?? 0) <= 0) return NextResponse.json({ error: "Você usou as 3 prévias grátis de hoje. Volte amanhã ou compre um crédito na Carteira para seguir agora." }, { status: 429 });
 
   const body = await req.json().catch(() => ({}));
   const mode = body.mode === "decidir" ? "decidir" : "surpreenda";

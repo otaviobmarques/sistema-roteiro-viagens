@@ -41,10 +41,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const res = await page.goto(`${origin}/app/viagem/${id}/pdf`, { waitUntil: "networkidle0", timeout: 40000 });
     if (!res || !res.ok() || !page.url().includes(`/viagem/${id}/pdf`)) throw new Error(`página do relatório respondeu ${res?.status() ?? "sem resposta"}`);
     // garante as fontes da marca carregadas antes de gerar (senão sai com a fonte padrão do servidor)
-    const fonts = await page.evaluate(async () => {
+    await page.evaluate(async () => {
       await Promise.all([...document.fonts].map((f) => f.load().catch(() => null)));
       await document.fonts.ready;
-      return [...document.fonts].map((f) => `${f.family.replace(/['"]/g, "")}:${f.status}`).join(",");
     });
     const pdf = await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true });
     const name = fileName(trip.title);
@@ -53,7 +52,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${name.replace(/[^\x20-\x7e]/g, "_")}"; filename*=UTF-8''${encodeURIComponent(name)}`,
         "Cache-Control": "private, no-store",
-        "X-Report-Fonts": fonts.slice(0, 500),
       },
     });
   } catch (e) {

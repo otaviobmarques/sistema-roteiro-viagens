@@ -41,8 +41,12 @@ export async function POST(req: Request) {
   if (totalDays < 1 || totalDays > 60) return NextResponse.json({ error: "A viagem precisa ter entre 1 e 60 dias." }, { status: 400 });
   if (totalDays < b.destinations.length) return NextResponse.json({ error: `São ${b.destinations.length} destinos para ${totalDays} dia(s). Aumente as datas ou tire um destino.` }, { status: 400 });
 
-  const { data: left } = await supabase.rpc("previews_left");
-  if (aiConfigured() && (left ?? 0) <= 0) return NextResponse.json({ error: "Você usou as 3 prévias grátis de hoje. Volte amanhã ou gere o roteiro completo." }, { status: 429 });
+  // quem tem crédito na carteira não fica preso no limite diário de prévias grátis
+  const [{ data: left }, { data: wallet }] = await Promise.all([
+    supabase.rpc("previews_left"),
+    supabase.from("credit_wallets").select("balance").eq("user_id", user.id).maybeSingle(),
+  ]);
+  if (aiConfigured() && (left ?? 0) <= 0 && (wallet?.balance ?? 0) <= 0) return NextResponse.json({ error: "Você usou as 3 prévias grátis de hoje. Volte amanhã ou compre um crédito na Carteira para seguir agora." }, { status: 429 });
 
   // Geocodifica (base aberta) e verifica cada destino
   const geos = await Promise.all(b.destinations.map((d) => geocode(d)));
