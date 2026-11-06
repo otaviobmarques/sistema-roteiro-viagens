@@ -13,16 +13,25 @@ export function buildTripChecklist(args: {
   tickets: string[]; // atrações pagas mais importantes
   children: number;
 }): AutoCheck[] {
-  const due = (daysBefore: number) => (args.start ? addDays(args.start, -daysBefore) : null);
+  // prazo ideal antes da ida; se já passou, vence hoje (o app mostra como "fazer agora")
+  const today = new Date().toISOString().slice(0, 10);
+  const due = (daysBefore: number) => {
+    if (!args.start) return null;
+    const d = addDays(args.start, -daysBefore);
+    return d < today ? today : d;
+  };
+  const plugLetters = (t: string) => (t.match(/\b[A-N]\b/g) ?? []).filter((x, i, a) => a.indexOf(x) === i).join(", ");
+  const currency = (t: string) => t.replace(/^moeda:\s*/i, "").split(/[.;]/)[0].trim();
   const out: AutoCheck[] = [];
   const add = (list: AutoCheck["list"], category: string, label: string, d: number | null) => out.push({ list, category, label: label.slice(0, 180), due_date: d == null ? null : due(d) });
   const g = args.guides;
 
   // Documentos
   if (args.international) {
-    add("pre_viagem", "Documentos", `Conferir a validade do passaporte${g[0] ? ` (${g[0].guide.documents.passport})` : " (em geral, 6 meses além da volta)"}`, 60);
-    g.forEach(({ country, guide }) => add("pre_viagem", "Documentos", `${country}: ${guide.documents.visa}`, 45));
-    g.forEach(({ country, guide }) => guide.documents.other && add("pre_viagem", "Documentos", `${country}: ${guide.documents.other}`, 30));
+    add("pre_viagem", "Documentos", "Conferir a validade e a data de emissão do passaporte", 60);
+    g.forEach(({ country }) => add("pre_viagem", "Documentos", `Confirmar as regras de entrada para ${country} (visto ou autorização eletrônica)`, 45));
+    if (!g.length) add("pre_viagem", "Documentos", "Confirmar as regras de entrada do destino (visto ou autorização eletrônica)", 45);
+    add("pre_viagem", "Documentos", "Separar comprovantes de hospedagem, passagem de volta e meios financeiros (a imigração pode pedir)", 3);
   } else {
     add("pre_viagem", "Documentos", "Separar documento com foto (RG ou CNH) de todos os viajantes", 2);
   }
@@ -32,10 +41,11 @@ export function buildTripChecklist(args: {
   // Seguro e saúde
   if (args.international) {
     const mandatory = g.some((x) => x.guide.insurance.mandatory);
-    add("pre_viagem", "Seguro e saúde", mandatory ? `Contratar o seguro viagem (obrigatório para entrar): ${g.find((x) => x.guide.insurance.mandatory)!.guide.insurance.requirement}` : "Contratar o seguro viagem com boa cobertura médica", 15);
+    const schengenLike = g.some((x) => x.guide.insurance.mandatory && /30/.test(x.guide.insurance.requirement));
+    add("pre_viagem", "Seguro e saúde", mandatory ? `Contratar o seguro viagem (pode ser exigido na entrada${schengenLike ? ": cobertura médica mínima de € 30 mil" : ""})` : "Contratar o seguro viagem com boa cobertura médica", 15);
     add("pre_viagem", "Seguro e saúde", "Ver se o seu cartão de crédito inclui seguro viagem e o que ele cobre", 20);
     g.forEach(({ country, guide }) => guide.health.agreement && add("pre_viagem", "Seguro e saúde", `Emitir antes de viajar o certificado do acordo de saúde Brasil–${country}`, 20));
-    g.forEach(({ country, guide }) => !/nenhuma/i.test(guide.health.vaccines) && add("pre_viagem", "Seguro e saúde", `Vacinas para ${country}: ${guide.health.vaccines}`, 30));
+    g.forEach(({ country, guide }) => !/nenhuma/i.test(guide.health.vaccines) && add("pre_viagem", "Seguro e saúde", `Ver no posto de saúde as vacinas para ${country}`, 30));
   } else {
     add("pre_viagem", "Seguro e saúde", "Avaliar um seguro viagem nacional (cobre imprevistos e bagagem)", 10);
   }
@@ -50,7 +60,7 @@ export function buildTripChecklist(args: {
 
   // Dinheiro
   if (args.international) {
-    g.forEach(({ country, guide }) => add("pre_viagem", "Dinheiro", `${country}: levar cartão internacional e um pouco de dinheiro (${guide.money.currency})`, 7));
+    [...new Set(g.map(({ guide }) => currency(guide.money.currency)))].forEach((cur) => add("pre_viagem", "Dinheiro", `Levar cartão internacional e um pouco de dinheiro em espécie (${cur})`, 7));
     add("pre_viagem", "Dinheiro", "Liberar o uso do cartão no exterior no app do banco", 3);
   }
 
@@ -61,7 +71,7 @@ export function buildTripChecklist(args: {
   add("pre_viagem", "Casa", "Organizar a casa: contas, plantas, pets e lixo", 2);
 
   // Mala (pelo clima e pelo país)
-  if (args.international) g.forEach(({ country, guide }) => add("mala", "Eletrônicos", `Adaptador de tomada para ${country} (${guide.power.plugs})`, null));
+  if (args.international) g.forEach(({ country, guide }) => { const l = plugLetters(guide.power.plugs); add("mala", "Eletrônicos", `Adaptador de tomada para ${country}${l ? ` (tipo ${l})` : ""}`, null); });
   add("mala", "Eletrônicos", "Carregador e bateria portátil", null);
   const rains = args.weather.map((w) => w.rain ?? 0);
   const tmaxs = args.weather.map((w) => w.tmax).filter((t): t is number => t != null);
