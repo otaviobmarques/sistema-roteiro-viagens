@@ -105,10 +105,10 @@ export async function transitTips(legs: LegIn[]): Promise<{ tips: Map<string, Le
         schema: TipSchema,
         effort: "low",
         maxTokens: 4000,
-        system: "Você é o Pino, guia do Rotta 365. Explica de forma curta e prática como ir de um ponto turístico a outro, em português do Brasil.",
+        system: "Você é o Pino, guia do Rotta 365. Explica de forma curta e prática como ir de um ponto turístico a outro, em português do Brasil. Não cite marcas nem empresas privadas (apps de corrida, operadoras); nomes de linhas e estações do transporte público podem ser citados.",
         prompt: [
           `Cidade: ${city}${ls[0].country ? `, ${ls[0].country}` : ""}.`,
-          "Para cada trecho, diga como ir. Se o modo for transporte público, cite a linha de metrô/ônibus/trem e as estações SÓ quando tiver certeza; se não tiver, oriente de forma geral (ex.: 'metrô até a estação mais próxima do centro histórico'). Se for táxi/app, cite o app comum na cidade e o preço aproximado. Sempre preço por pessoa em reais.",
+          "Para cada trecho, diga como ir. Se o modo for transporte público, cite a linha de metrô/ônibus/trem e as estações SÓ quando tiver certeza; se não tiver, oriente de forma geral (ex.: 'metrô até a estação mais próxima do centro histórico'). Se for táxi/app, diga “táxi ou app de transporte” (sem citar marcas) e o preço aproximado. Sempre preço por pessoa em reais.",
           "Trechos (chave | de → para | modo sugerido | distância | tempo):",
           ...ls.map((l) => `${l.key} | ${l.from} → ${l.to} | ${modeLabel(l.mode)} | ${l.km.toFixed(1)} km | ${l.minutes} min`),
         ].join("\n"),

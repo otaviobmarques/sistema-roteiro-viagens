@@ -13,6 +13,7 @@ import { normalizeKind, normalizeProfile } from "./normalize";
 import { TripPlaces } from "../domain/dedupe";
 import { photosFor, transitTips, type LegIn } from "../enrich";
 import { countryGuides } from "./country-guide";
+import { buildTripChecklist } from "../checklist-auto";
 import { haversineKm } from "../domain/geo";
 
 
@@ -327,7 +328,7 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
     });
   }
   const viability = tripViability(dayScores);
-  await guidesWarm;
+  const guides = await guidesWarm;
 
   // Enriquecimento: fotos (Wikimedia, grátis) e "como chegar" em cada trecho, já na ordem final
   const legIns: LegIn[] = [];
@@ -387,6 +388,24 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
     ),
   );
   if (optionRows.length) await supabase.from("item_options").insert(optionRows);
+
+  // Bônus: checklist de viagem (pré-viagem e mala) a partir do roteiro e do guia do país; não duplica itens já existentes
+  try {
+    const intl = inputs.some((d) => d.country && !/^(brasil|brazil)$/i.test(d.country));
+    const tickets = daysOut.flatMap((d) => d.items).filter((it) => (it.kind === "lugar" || it.kind === "atividade") && it.cost_cents > 0 && it.candidate)
+      .sort((a, b2) => (Number(b2.score ?? 0) - Number(a.score ?? 0))).slice(0, 4).map((it) => it.title);
+    const checks = buildTripChecklist({
+      start: trip.start_date, guides, cities: inputs.map((d) => d.city), international: intl,
+      weather: daysOut.map((d) => ({ rain: d.rain, tmax: weathers[inputs.findIndex((x) => x.id === d.destId)]?.[d.date]?.tmax ?? null })),
+      tickets, children: trip.travelers_children ?? 0,
+    });
+    const { data: existing } = await supabase.from("checklist_items").select("label, list").eq("trip_id", tripId);
+    const have = new Set((existing ?? []).map((e) => `${e.list}:${String(e.label).toLowerCase()}`));
+    const rows = checks.filter((c) => !have.has(`${c.list}:${c.label.toLowerCase()}`)).map((c, i) => ({ trip_id: tripId, list: c.list, category: c.category, label: c.label, due_date: c.due_date, shared: true, done: false, position: 1000 + i }));
+    if (rows.length) await supabase.from("checklist_items").insert(rows);
+  } catch {
+    // o checklist é bônus: se falhar, o roteiro continua valendo
+  }
 
   // Obrigatórios: atualiza status (RN-20)
   if (must?.length) {

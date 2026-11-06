@@ -3,6 +3,7 @@ import { loadTrip, tripPeriod, STATUS_LABEL, PROFILE_LABEL } from "@/lib/trip";
 import { Avatar, Pill } from "@/components/ui";
 import { memberName } from "@/lib/types";
 import { TripTabs } from "./tabs";
+import { DownloadPdfButton } from "@/components/export/print-button";
 import { FileDown, Share2 } from "lucide-react";
 
 export default async function TripLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
@@ -28,7 +29,8 @@ export default async function TripLayout({ children, params }: { children: React
           {members.slice(0, 5).map((m) => <Avatar key={m.id} name={memberName(m)} url={m.profiles?.avatar_url} size={30} />)}
         </div>
         <Link href={`/app/viagem/${id}/grupo`} className="btn-secondary btn-sm"><Share2 size={14} /> Compartilhar</Link>
-        <Link href={`/app/viagem/${id}/pdf`} className="btn-secondary btn-sm"><FileDown size={14} /> PDF</Link>
+        <Link href={`/app/viagem/${id}/pdf`} className="btn-secondary btn-sm"><FileDown size={14} /> Relatório</Link>
+        <DownloadPdfButton tripId={id} title={trip.title} />
         </div>
       </div>
       <TripTabs id={id} role={role} />

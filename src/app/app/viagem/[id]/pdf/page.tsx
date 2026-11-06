@@ -79,7 +79,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
     supabase.from("itinerary_items").select("*").eq("trip_id", id).not("day_id", "is", null).order("position"),
     supabase.from("reservations").select("*").eq("trip_id", id).order("start_at"),
     supabase.from("trip_must_haves").select("original_text, status").eq("trip_id", id),
-    supabase.from("checklist_items").select("label, list, done, due_date").eq("trip_id", id).eq("done", false).eq("list", "pre_viagem").limit(12),
+    supabase.from("checklist_items").select("label, list, category, done, due_date, position").eq("trip_id", id).order("position").limit(200),
     supabase.from("ai_generations").select("output").eq("trip_id", id).eq("kind", "previa").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   const days = (daysRaw ?? []) as Day[];
@@ -450,15 +450,6 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
           )}
         </div>
 
-        {!!checklist?.length && (
-          <div className="avoid">
-            <h2 className="font-display text-xl font-extrabold">Antes de sair</h2>
-            <ul className="mt-2 grid gap-1.5 text-sm sm:grid-cols-2">
-              {checklist.map((c) => <li key={c.label} className="flex items-center gap-2"><span className="h-3.5 w-3.5 rounded border border-gray/50" />{c.label}{c.due_date ? <span className="mono text-xs text-gray">até {fmtDateShort(c.due_date)}</span> : null}</li>)}
-            </ul>
-          </div>
-        )}
-
         <div className="avoid grid gap-6 sm:grid-cols-2">
           <div>
             <h2 className="font-display text-xl font-extrabold">Viajantes</h2>
@@ -481,6 +472,50 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
           Gerado pelo Rotta 365 em {fmtDate(addDays(new Date().toISOString().slice(0, 10), 0))} · lugares e mapas © colaboradores do OpenStreetMap e Wikidata · rotta365.com.br
         </footer>
       </section>
+
+      {/* ---------- BÔNUS: CHECKLIST DE VIAGEM ---------- */}
+      {!!checklist?.length && (() => {
+        const groups = (list: string) => {
+          const m = new Map<string, NonNullable<typeof checklist>>();
+          checklist.filter((c) => c.list === list).forEach((c) => m.set(c.category || "Geral", [...(m.get(c.category || "Geral") ?? []), c]));
+          return [...m.entries()];
+        };
+        const Box = ({ c }: { c: NonNullable<typeof checklist>[number] }) => (
+          <li className="flex items-start gap-2 py-1">
+            <span className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${c.done ? "border-ok bg-ok text-white" : "border-gray/60"}`}>{c.done && <svg width="8" height="8" viewBox="0 0 8 8" aria-hidden><path d="M1 4l2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>}</span>
+            <span className="flex-1">{c.label}</span>
+            {c.due_date && !c.done && <span className="mono shrink-0 text-[10px] text-gray">até {fmtDateShort(c.due_date)}</span>}
+          </li>
+        );
+        return (
+          <section className="sheet page-break mt-6 rounded-3xl border border-line bg-white p-9 shadow-[var(--shadow-card)]">
+            <div className="flex items-center gap-2"><span className="rounded-md bg-teal-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-[#0b7f84]">Bônus</span><span className="label">Feito para a sua viagem</span></div>
+            <h2 className="mt-1 font-display text-2xl font-extrabold">Checklist de viagem</h2>
+            <p className="mt-1 text-sm text-gray">O que resolver antes de ir, com o prazo ideal de cada item. Ele também está no app, na aba Mala e checklist, para ir marcando.</p>
+            <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 print:grid-cols-2">
+              {groups("pre_viagem").map(([cat, list]) => (
+                <div key={cat} className="avoid">
+                  <h3 className="text-sm font-extrabold text-blue">{cat}</h3>
+                  <ul className="mt-1 text-[12px] leading-snug">{list.map((c) => <Box key={c.label} c={c} />)}</ul>
+                </div>
+              ))}
+            </div>
+            {groups("mala").length > 0 && (
+              <div className="avoid mt-6 border-t border-line pt-4">
+                <h3 className="font-display text-lg font-extrabold">Mala</h3>
+                <div className="mt-2 grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2 print:grid-cols-2">
+                  {groups("mala").map(([cat, list]) => (
+                    <div key={cat} className="avoid">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-gray">{cat}</h4>
+                      <ul className="mt-1 text-[12px] leading-snug">{list.map((c) => <Box key={c.label} c={c} />)}</ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       {/* ---------- OBRIGADO + INDICAÇÃO ---------- */}
       <section className="sheet page-break mt-6 overflow-hidden rounded-3xl border border-line bg-white shadow-[var(--shadow-card)]">

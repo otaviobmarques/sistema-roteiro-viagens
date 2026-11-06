@@ -16,6 +16,37 @@ import type { Day, Item, ItemOption, Trip, Destination } from "@/lib/types";
 import { ItemCard } from "./item-card";
 import { AddItem } from "./add-item";
 import { PinoPanel } from "./pino-panel";
+import { DownloadPdfButton } from "@/components/export/print-button";
+
+/** Logo depois de gerar: o roteiro está pronto e o PDF está a um toque. */
+function ReadyCard({ tripId, title }: { tripId: string; title: string }) {
+  return (
+    <div className="hero-gradient flex flex-wrap items-center gap-4 rounded-2xl p-5 text-white shadow-[var(--shadow-card)]">
+      <PinoAvatar mood="achei" size={44} />
+      <div className="min-w-0 flex-1">
+        <div className="text-lg font-extrabold">Seu roteiro está pronto! 🎉</div>
+        <div className="text-sm text-white/85">Baixe o PDF completo, com fotos, como chegar, custos, guia do país e o checklist de bônus.</div>
+      </div>
+      <div className="flex flex-wrap gap-2 [&_.btn-primary]:bg-white [&_.btn-primary]:text-blue">
+        <DownloadPdfButton tripId={tripId} title={title} />
+        <a href={`/app/viagem/${tripId}/pdf`} className="btn-secondary btn-sm border-white/40 bg-white/10 text-white">Ver relatório</a>
+      </div>
+    </div>
+  );
+}
+
+/** No fim da página do dia: quem terminou de ler encontra o download ali mesmo. */
+function DownloadFooter({ tripId, title }: { tripId: string; title: string }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-blue/20 bg-blue-50 p-4">
+      <div className="min-w-0 flex-1">
+        <div className="font-bold">Leve o roteiro com você</div>
+        <div className="text-xs text-gray">PDF completo de todos os dias, para salvar, imprimir ou mandar no WhatsApp.</div>
+      </div>
+      <DownloadPdfButton tripId={tripId} title={title} />
+    </div>
+  );
+}
 
 type Props = {
   trip: Trip; userId: string; days: Day[]; items: Item[]; options: ItemOption[]; destinations: Destination[]; canEdit: boolean; pace: string; profile: string;
@@ -255,7 +286,8 @@ export function Planner(p: Props) {
           <span className="mono text-sm font-semibold">{computed.score}</span>
         </div>
 
-        {msg && <Notice tone={msg.tone === "ok" ? "ok" : msg.tone === "danger" ? "danger" : "blue"}><div className="flex items-start gap-2">{msg.tone === "ok" && <PinoAvatar mood="achei" size={22} />}<span className="flex-1">{msg.text}</span><button onClick={() => setMsg(null)} className="text-xs font-semibold">fechar</button></div></Notice>}
+        {p.justGenerated && <ReadyCard tripId={p.trip.id} title={p.trip.title} />}
+        {msg && !(p.justGenerated && msg.tone === "ok" && msg.text.startsWith("Achei!")) && <Notice tone={msg.tone === "ok" ? "ok" : msg.tone === "danger" ? "danger" : "blue"}><div className="flex items-start gap-2">{msg.tone === "ok" && <PinoAvatar mood="achei" size={22} />}<span className="flex-1">{msg.text}</span><button onClick={() => setMsg(null)} className="text-xs font-semibold">fechar</button></div></Notice>}
 
         {computed.conflicts.length > 0 && (
           <div className="space-y-1.5">
@@ -330,6 +362,8 @@ export function Planner(p: Props) {
             <button className="btn-secondary btn-sm" onClick={() => redoDay("barato")} disabled={!!busyDay}>{busyDay === "barato" ? <Loader2 size={14} className="animate-spin" /> : <PiggyBank size={14} />} Mais barato</button>
           </div>
         )}
+
+        <DownloadFooter tripId={p.trip.id} title={p.trip.title} />
 
         <section className="card p-4" onDragOver={(e) => e.preventDefault()} onDrop={() => { if (dragId.current) reorder(dragId.current, 999, null); dragId.current = null; }}>
           <div className="mb-2 flex items-center gap-2"><Lightbulb size={16} className="text-blue" /><h3 className="font-bold">Lista de ideias</h3><span className="text-xs text-gray">lugares sem dia, para encaixar depois</span></div>

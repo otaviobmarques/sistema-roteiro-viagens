@@ -20,14 +20,14 @@ const GuideSchema = z.object({
     medicines: z.string().describe("cuidado com remédios na bagagem, em até 20 palavras"),
   }),
   connectivity: z.object({
-    roaming: z.string().describe("roaming das operadoras brasileiras (Vivo, Claro, TIM) nesse país, em até 22 palavras"),
-    esim: z.string().describe("eSIM de viagem: vale a pena, cobertura, preço típico, em até 22 palavras"),
-    local_sim: z.string().describe("chip local: operadoras comuns, onde comprar, o que pedem, em até 22 palavras"),
+    roaming: z.string().describe("como funciona usar o pacote internacional da operadora brasileira nesse país (sem citar marcas), em até 22 palavras"),
+    esim: z.string().describe("eSIM de viagem: vale a pena, cobertura, faixa de preço típica (sem citar marcas), em até 22 palavras"),
+    local_sim: z.string().describe("chip local: onde comprar (aeroporto, lojas oficiais, bancas), o que pedem, sem citar marcas, em até 22 palavras"),
     tip: z.string().describe("dica prática de internet/ligações, em até 18 palavras"),
   }),
   money: z.object({
     currency: z.string().describe("moeda e câmbio aproximado em reais"),
-    cards: z.string().describe("aceitação de cartão, saque, IOF e cartões globais, em até 25 palavras"),
+    cards: z.string().describe("aceitação de cartão, saque, IOF e conta/cartão em moeda estrangeira (sem citar bancos ou marcas), em até 25 palavras"),
     tipping: z.string().describe("costume de gorjeta, em até 18 palavras"),
   }),
   power: z.object({ plugs: z.string().describe("tipos de tomada (letras) e se precisa de adaptador vindo do Brasil"), voltage: z.string() }),
@@ -50,7 +50,7 @@ async function generate(country: string): Promise<CountryGuide> {
     schema: GuideSchema,
     effort: "low",
     maxTokens: 3500,
-    system: "Você é o Pino, guia de viagem do Rotta 365. Escreve para turistas brasileiros, em português do Brasil, de forma curta, prática e correta. Quando uma regra puder ter mudado recentemente, diga para confirmar no site oficial; nunca invente números ou exigências.",
+    system: "Você é o Pino, guia de viagem do Rotta 365. Escreve para turistas brasileiros, em português do Brasil, de forma curta, prática e correta. Quando uma regra puder ter mudado recentemente, diga para confirmar no site oficial; nunca invente números ou exigências. Nunca cite nomes de empresas, marcas, operadoras, bancos ou aplicativos comerciais: fale da categoria (\"sua operadora\", \"um eSIM de viagem\", \"app de transporte\"). Programas oficiais de governo (ex.: autorização eletrônica de viagem) podem ser citados.",
     prompt: `Monte o guia "antes de ir" para um turista brasileiro que vai viajar para: ${country}.`,
   });
   return r.data;
