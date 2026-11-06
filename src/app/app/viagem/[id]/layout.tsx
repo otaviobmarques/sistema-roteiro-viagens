@@ -26,15 +26,15 @@ export default async function TripLayout({ children, params }: { children: React
             {trip.viability_score != null && <> · viabilidade <b className="text-navy">{trip.viability_score}</b></>}
           </div>
         </div>
-        <div className="flex w-full flex-wrap items-start gap-2 sm:w-auto">
-        <div className="mr-auto flex -space-x-2 sm:mr-0" aria-label="Viajantes">
+        <div className="flex w-full items-start gap-2 sm:w-auto">
+        <div className="hidden -space-x-2 sm:flex" aria-label="Viajantes">
           {members.slice(0, 5).map((m) => <Avatar key={m.id} name={memberName(m)} url={m.profiles?.avatar_url} size={30} />)}
         </div>
         <div className="flex flex-col items-stretch gap-1.5">
           <Link href={`/app/viagem/${id}/grupo`} className="btn-secondary btn-sm"><Share2 size={14} /> Compartilhar</Link>
           {me?.is_admin && trip.generated && <RegenerateTrip tripId={id} title={trip.title} variant="yellow" />}
         </div>
-        <Link href={`/app/viagem/${id}/pdf`} className="btn-secondary btn-sm"><FileDown size={14} /> Relatório</Link>
+        <Link href={`/app/viagem/${id}/pdf`} className="btn-secondary btn-sm" aria-label="Relatório"><FileDown size={14} /><span className="hidden sm:inline">Relatório</span></Link>
         <DownloadPdfButton tripId={id} title={trip.title} />
         </div>
       </div>
