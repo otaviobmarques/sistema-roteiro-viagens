@@ -9,7 +9,7 @@ import { fmtBRL, fmtMoney } from "@/lib/domain/settle";
 import { badge } from "@/lib/domain/score";
 import type { Day, Item, Reservation } from "@/lib/types";
 import { memberName } from "@/lib/types";
-import { PrintButton } from "@/components/export/print-button";
+import { PrintButton, DownloadPdfButton } from "@/components/export/print-button";
 import { fmtLocal, RES_KINDS } from "@/components/reservations/format";
 
 // O título vira o nome do arquivo ao "Salvar como PDF"
@@ -88,10 +88,11 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
       `}</style>
 
       <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-gray">Toque em “Imprimir” e escolha <b>Salvar como PDF</b>. Formato A4, uma página por dia.</p>
-        <div className="flex gap-2">
+        <p className="text-sm text-gray">Relatório em A4, uma página por dia. Use <b>Baixar PDF</b> para salvar ou enviar pelo WhatsApp.</p>
+        <div className="flex flex-wrap items-start gap-2">
           <a className="btn-secondary btn-sm" href={`/api/trips/${id}/ics`}>Calendário (.ics)</a>
           <PrintButton />
+          <DownloadPdfButton tripId={id} title={trip.title} />
         </div>
       </div>
 
