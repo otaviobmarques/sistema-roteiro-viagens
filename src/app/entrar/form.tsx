@@ -33,6 +33,18 @@ export function LoginForm({ next, initialMode }: { next: string; initialMode: "e
     if (error) { setMsg({ tone: "err", text: "O login com Google ainda não foi ativado neste ambiente. Use e-mail e senha." }); setBusy(false); }
   };
 
+  const forgot = async () => {
+    setMsg(null);
+    const v = email.trim();
+    if (!v) { setMsg({ tone: "err", text: "Digite seu e-mail no campo acima e clique de novo em “Esqueci minha senha”." }); return; }
+    if (!v.includes("@")) { setMsg({ tone: "err", text: "Sua conta usa nome de usuário. Para trocar a senha, fale com o suporte do Rotta 365." }); return; }
+    setBusy(true);
+    const { error } = await sb.auth.resetPasswordForEmail(v, { redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/app/nova-senha")}` });
+    setBusy(false);
+    if (error && /rate limit/i.test(error.message)) setMsg({ tone: "err", text: "Muitas tentativas em pouco tempo. Aguarde alguns minutos." });
+    else setMsg({ tone: "ok", text: "Se houver uma conta com esse e-mail, enviamos um link para criar uma nova senha. Confira também o spam." });
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -94,6 +106,9 @@ export function LoginForm({ next, initialMode }: { next: string; initialMode: "e
         {!useLink && (
           <label className="block"><span className="mb-1 block text-xs font-semibold">Senha</span>
             <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} autoComplete={mode === "criar" ? "new-password" : "current-password"} /></label>
+        )}
+        {mode === "entrar" && !useLink && (
+          <div className="-mt-1 text-right"><button type="button" onClick={forgot} disabled={busy} className="text-xs font-semibold text-blue">Esqueci minha senha</button></div>
         )}
         <button className="btn-primary w-full" disabled={busy}>{busy ? "Aguarde…" : useLink ? "Receber link de acesso" : mode === "entrar" ? "Entrar" : "Criar conta"}</button>
       </form>
