@@ -11,6 +11,8 @@ import { fitScore, forYouScore, TRAVEL_PROFILES, INTEREST_CATEGORIES, type Trave
 import { transferLegs } from "../domain/multidest";
 import { normalizeKind, normalizeProfile } from "./normalize";
 import { TripPlaces } from "../domain/dedupe";
+import { photosFor, transitTips, type LegIn } from "../enrich";
+import { haversineKm } from "../domain/geo";
 
 
 const PROFILES = ["mochilao", "classica", "experiencia"] as const;
@@ -294,6 +296,27 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
   }
   const viability = tripViability(dayScores);
 
+  // Enriquecimento: fotos (Wikimedia, grátis) e "como chegar" em cada trecho, já na ordem final
+  const legIns: LegIn[] = [];
+  daysOut.forEach((day, di) => {
+    const dest = inputs.find((x) => x.id === day.destId);
+    day.items.forEach((it, idx) => {
+      const prev = day.items[idx - 1];
+      if (!prev || it.kind === "trajeto" || prev.kind === "nota" || prev.kind === "livre") return;
+      const a = ll(prev), c = ll(it);
+      if (!a || !c) return;
+      legIns.push({ key: `${di}-${idx}`, city: dest?.city ?? "", country: dest?.country ?? null, from: prev.title, to: it.title, mode: it.transport_mode ?? "a_pe", minutes: it.travel_min ?? 0, km: Math.round(haversineKm(a, c) * 10) / 10 });
+    });
+  });
+  const chosen = daysOut.flatMap((d) => d.items.map((it) => it.candidate).filter(Boolean)) as Candidate[];
+  const [photos, transit] = await Promise.all([
+    photosFor(supabase, chosen).catch(() => new Map()),
+    transitTips(legIns).catch(() => ({ tips: new Map(), usage: { inputTokens: 0, outputTokens: 0, costCents: 0, ms: 0 } })),
+  ]);
+  usage.inputTokens += transit.usage.inputTokens;
+  usage.outputTokens += transit.usage.outputTokens;
+  usage.costCents += transit.usage.costCents;
+
   // Gravação: apaga o roteiro anterior (ajuste/refazer) e grava o novo
   await supabase.from("itinerary_items").delete().eq("trip_id", tripId).not("day_id", "is", null);
   await supabase.from("days").delete().eq("trip_id", tripId);
@@ -301,7 +324,7 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
   const { data: savedDays, error: dErr } = await supabase.from("days").insert(dayRows).select("id, date");
   if (dErr) throw dErr;
   const dayIdByDate = new Map(savedDays!.map((d) => [d.date, d.id]));
-  const itemRows = daysOut.flatMap((d) =>
+  const itemRows = daysOut.flatMap((d, di) =>
     d.items.map((it, pos) => ({
       id: it.id, trip_id: tripId, day_id: dayIdByDate.get(d.date), kind: it.kind === "trajeto" ? "trajeto" : it.kind, title: it.title,
       place_id: it.candidate?.id ?? null, lat: it.lat, lng: it.lng, category: it.candidate?.category ?? null, interest_category: it.interest_category,
@@ -309,6 +332,11 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
       transport_mode: it.transport_mode ?? "a_pe", travel_min: it.travel_min ?? null, cost_cents: it.cost_cents, currency: "BRL",
       opening_hours: it.opening_hours ?? null, outdoor: !!it.outdoor, must_have: it.must_have, travel_profile: b.profile, score: it.score, why: it.why,
       verified: it.verified, position: pos, created_by: userId,
+      photo_url: it.candidate ? photos.get(it.candidate.id)?.url ?? null : null,
+      photo_credit: it.candidate ? photos.get(it.candidate.id)?.credit ?? null : null,
+      transit_tip: transit.tips.get(`${di}-${pos}`)?.tip ?? null,
+      transit_from: transit.tips.has(`${di}-${pos}`) ? d.items[pos - 1]?.title ?? null : null,
+      transit_cost_cents: transit.tips.get(`${di}-${pos}`)?.fare_cents ?? null,
     })),
   );
   if (itemRows.length) {

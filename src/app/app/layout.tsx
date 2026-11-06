@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { getProfile } from "@/lib/supabase/server";
+import { ReferralClaim } from "@/components/referral";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { supabase, user, profile } = await getProfile();
@@ -19,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       isAdmin={!!profile?.is_admin}
       currentTripId={lastTrip?.id ?? null}
     >
+      <ReferralClaim />
       {children}
     </AppShell>
   );

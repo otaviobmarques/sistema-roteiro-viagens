@@ -44,3 +44,9 @@ export function suggestMode(a: LatLng | null, b: LatLng | null, profile = "class
   if (profile === "experiencia") return "taxi";
   return "transporte";
 }
+
+/** Link do Google Maps com a rota entre dois pontos no modo certo (horários reais do transporte público). */
+export function mapsRouteUrl(a: LatLng, b: LatLng, mode: string | null | undefined) {
+  const travelmode = mode === "a_pe" ? "walking" : mode === "transporte" || mode === "trem" ? "transit" : mode === "bicicleta" ? "bicycling" : "driving";
+  return `https://www.google.com/maps/dir/?api=1&origin=${a.lat},${a.lng}&destination=${b.lat},${b.lng}&travelmode=${travelmode}`;
+}

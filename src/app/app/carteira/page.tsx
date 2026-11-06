@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ReferralCard } from "@/components/referral";
 import { requireUser } from "@/lib/supabase/server";
 import { PageTitle, PinoAvatar, Pill, Notice, EmptyState } from "@/components/ui";
 import { fmtBRL } from "@/lib/domain/settle";
@@ -27,7 +28,12 @@ export default async function WalletPage({ searchParams }: { searchParams: Promi
   const { trip: tripId } = await searchParams;
   const { supabase, user } = await requireUser();
   const pay = await paymentConfig().catch(() => null);
-  const { data: me } = await supabase.from("profiles").select("is_admin").eq("id", user.id).maybeSingle();
+  const { data: me } = await supabase.from("profiles").select("is_admin, referral_code").eq("id", user.id).maybeSingle();
+  const [{ data: refs }, { data: refSetting }] = await Promise.all([
+    supabase.from("referrals").select("rewarded_at").eq("referrer_id", user.id),
+    supabase.from("app_settings").select("value").eq("key", "referral_credits").maybeSingle(),
+  ]);
+  const site = process.env.NEXT_PUBLIC_SITE_URL || "https://rotta365.com.br";
   const salesPaused = pay?.env !== "producao" && !me?.is_admin;
   const [{ data: wallet }, { data: products }, { data: txs }, { data: orders }, tripRes] = await Promise.all([
     supabase.from("credit_wallets").select("balance, updated_at").eq("user_id", user.id).maybeSingle(),
@@ -87,6 +93,8 @@ export default async function WalletPage({ searchParams }: { searchParams: Promi
           ) : <Checkout testMode={pay?.env !== "producao"} pixAvailable={pay ? pixProviders(pay).length > 0 : false} cardAvailable={pay ? !!cardProvider(pay) : false} products={(products ?? []).map((p) => ({ id: p.id, name: p.name, credits: p.credits, price_cents: p.price_cents }))} />}
         </section>
       </div>
+
+      {me?.referral_code && <ReferralCard url={`${site}/r/${me.referral_code}`} invited={refs?.length ?? 0} rewarded={(refs ?? []).filter((r) => r.rewarded_at).length} credits={Number(refSetting?.value ?? 1) || 1} />}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="card p-5">

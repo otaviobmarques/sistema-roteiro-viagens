@@ -44,6 +44,10 @@ export function ItemCard(p: {
           {p.conflicts.map((c, i) => <div key={i} className="mt-1 text-xs text-warn">{c.message}</div>)}
           {showWhy && it.why && <div className="mt-2 rounded-lg bg-blue-50 px-2.5 py-2 text-xs text-navy"><b>Por que o Pino escolheu:</b> {it.why}</div>}
         </div>
+        {it.photo_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={it.photo_url} alt={it.title} title={it.photo_credit ?? undefined} loading="lazy" className="h-14 w-20 shrink-0 rounded-lg object-cover" />
+        )}
         <div className="flex shrink-0 flex-col items-end gap-1">
           <button onClick={(e) => { e.stopPropagation(); setShowWhy(!showWhy); }} aria-label="Por que o Pino escolheu" title="Por que o Pino escolheu"><ScoreBadge score={it.score} /></button>
           {it.done && <Check size={14} className="text-ok" />}

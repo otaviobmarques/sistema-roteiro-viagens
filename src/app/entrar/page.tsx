@@ -3,7 +3,7 @@ import { LoginForm } from "./form";
 
 export const metadata = { title: "Entrar" };
 
-export default async function Entrar({ searchParams }: { searchParams: Promise<{ next?: string; modo?: string; erro?: string; suspensa?: string }> }) {
+export default async function Entrar({ searchParams }: { searchParams: Promise<{ next?: string; modo?: string; erro?: string; suspensa?: string; indicacao?: string }> }) {
   const sp = await searchParams;
   return (
     <div className="mx-auto grid min-h-dvh max-w-6xl items-center gap-10 px-4 py-8 md:grid-cols-2">
@@ -19,6 +19,7 @@ export default async function Entrar({ searchParams }: { searchParams: Promise<{
       </div>
       <div className="mx-auto w-full max-w-md">
         <div className="mb-6 md:hidden"><Logo /></div>
+        {sp.indicacao && <p className="mb-3 rounded-xl bg-teal-50 px-3 py-2 text-sm text-[#0b7f84]">🎁 Você foi indicado por um amigo! Crie sua conta e ganhe <b>1 crédito extra</b> na primeira compra.</p>}
         {sp.suspensa && <p className="mb-3 rounded-xl bg-danger-50 px-3 py-2 text-sm text-danger">Sua conta está suspensa. Fale com o suporte.</p>}
         {sp.erro && <p className="mb-3 rounded-xl bg-danger-50 px-3 py-2 text-sm text-danger">Não foi possível entrar: {sp.erro}</p>}
         <LoginForm next={sp.next || "/app"} initialMode={sp.modo === "criar" ? "criar" : "entrar"} />

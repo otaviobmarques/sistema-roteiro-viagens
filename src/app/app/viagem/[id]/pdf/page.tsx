@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { loadTrip, tripPeriod, PROFILE_LABEL } from "@/lib/trip";
 import { cascade } from "@/lib/domain/schedule";
 import { fmtDate, fmtDuration, fmtDateShort, addDays } from "@/lib/domain/time";
-import { modeLabel } from "@/lib/domain/geo";
+import { modeLabel, mapsRouteUrl } from "@/lib/domain/geo";
 import { transferLegs } from "@/lib/domain/multidest";
 import { fmtBRL, fmtMoney } from "@/lib/domain/settle";
 import { badge } from "@/lib/domain/score";
@@ -31,6 +31,22 @@ function humanHours(oh: string): string {
 }
 const fmtKm = (km: number) => km.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const fmtReais = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0, minimumFractionDigits: 0 });
+// custo do dia por tipo (por pessoa)
+type CostSplit = { comida: number; passeios: number; hospedagem: number; transporte: number };
+function splitCosts(items: { kind: string; cost_cents?: number | null; transit_cost_cents?: number | null }[]): CostSplit {
+  const c: CostSplit = { comida: 0, passeios: 0, hospedagem: 0, transporte: 0 };
+  for (const it of items) {
+    const v = Number(it.cost_cents || 0);
+    if (it.kind === "refeicao") c.comida += v;
+    else if (it.kind === "hospedagem") c.hospedagem += v;
+    else if (it.kind === "trajeto") c.transporte += v;
+    else c.passeios += v;
+    c.transporte += Number(it.transit_cost_cents || 0);
+  }
+  return c;
+}
+const SPLIT_LABEL: [keyof CostSplit, string][] = [["comida", "Alimentação"], ["passeios", "Passeios e ingressos"], ["hospedagem", "Hospedagem"], ["transporte", "Transporte"]];
+
 const isBrazil = (c?: string | null) => !c || /^(brasil|brazil|br)$/i.test(c.trim());
 const isNorthAmerica = (c?: string | null) => !!c && /estados unidos|eua|usa|united states|canad/i.test(c);
 
@@ -52,9 +68,14 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
   const reservations = (resRaw ?? []) as Reservation[];
   const people = trip.travelers_adults + trip.travelers_children;
   const site = process.env.NEXT_PUBLIC_SITE_URL || "https://rotta365.vercel.app";
+  const { data: owner } = await supabase.from("profiles").select("name, referral_code").eq("id", trip.owner_id).maybeSingle();
+  const referralUrl = owner?.referral_code ? `${site}/r/${owner.referral_code}` : site;
+  const referralQr = await QRCode.toDataURL(referralUrl, { margin: 0, width: 220, color: { dark: "#0A1F4C", light: "#FFFFFF" } });
   const qr = await QRCode.toDataURL(`${site}/app/viagem/${id}/hoje`, { margin: 0, width: 220, color: { dark: "#0A1F4C", light: "#FFFFFF" } });
   const computed = days.map((d) => cascade(items.filter((i) => i.day_id === d.id), { date: d.date, dayStart: d.day_start || "09:00", pace: trip.pace }));
-  const totalCost = computed.reduce((s, r) => s + r.costCents, 0);
+  const daySplits = computed.map((r) => splitCosts(r.items as unknown as Item[]));
+  const tripSplit = daySplits.reduce((a, c) => ({ comida: a.comida + c.comida, passeios: a.passeios + c.passeios, hospedagem: a.hospedagem + c.hospedagem, transporte: a.transporte + c.transporte }), { comida: 0, passeios: 0, hospedagem: 0, transporte: 0 });
+  const totalCost = tripSplit.comida + tripSplit.passeios + tripSplit.hospedagem + tripSplit.transporte;
   const places = items.filter((i) => i.kind !== "nota" && i.kind !== "livre" && i.kind !== "trajeto").length;
   const legs = transferLegs(destinations.filter((d) => d.lat != null).map((d) => ({ id: d.id, city: d.city, lat: d.lat!, lng: d.lng! })));
   const totalDays = destinations.reduce((s, d) => s + (d.days ?? 0), 0) || days.length;
@@ -211,6 +232,21 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
             ))}
           </ol>
         </div>
+
+        {totalCost > 0 && (
+          <div className="avoid mt-6">
+            <div className="label mb-2">Quanto custa (estimativa por pessoa)</div>
+            <table className="w-full overflow-hidden rounded-xl border border-line text-sm">
+              <tbody className="divide-y divide-line">
+                {SPLIT_LABEL.filter(([k]) => tripSplit[k] > 0).map(([k, l]) => (
+                  <tr key={k}><td className="px-3 py-2">{l}</td><td className="mono px-3 py-2 text-right">{fmtBRL(tripSplit[k])}</td><td className="mono w-16 px-3 py-2 text-right text-gray">{Math.round((tripSplit[k] / totalCost) * 100)}%</td></tr>
+                ))}
+                <tr className="bg-ice font-bold"><td className="px-3 py-2">Total da viagem</td><td className="mono px-3 py-2 text-right">{fmtBRL(totalCost)}</td><td /></tr>
+              </tbody>
+            </table>
+            <p className="mt-1.5 text-[11px] text-gray">Hospedagem por noite e por quarto, conforme o perfil escolhido. Passagens aéreas não estão incluídas.</p>
+          </div>
+        )}
       </section>
 
       {/* ---------- DIAS ---------- */}
@@ -245,7 +281,20 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
                         <span className="z-10 mt-1.5 h-3 w-3 rounded-full border-2 border-white" style={{ background: it.anchor ? "#0A1F4C" : it.kind === "refeicao" ? "#11C2C8" : "#205BFF", boxShadow: "0 0 0 2px #E3E8F2" }} />
                         {!last && <span className="absolute top-4 bottom-[-6px] w-0.5 bg-line" />}
                       </div>
-                      <div className="min-w-0 flex-1 rounded-xl border border-line px-3.5 py-2.5">
+                      <div className="min-w-0 flex-1">
+                      {k > 0 && it.travel_before > 0 && (() => {
+                        const prev = res.items[k - 1];
+                        const tipOk = it.transit_tip && it.transit_from === prev?.title;
+                        return (
+                          <div className="mb-1.5 flex flex-wrap items-baseline gap-x-2 rounded-lg bg-ice px-2.5 py-1.5 text-[11px] text-gray">
+                            <span className="font-semibold text-navy">Como chegar · {modeLabel(it.transport_mode)}, {fmtDuration(it.travel_before)}{tipOk && it.transit_cost_cents ? ` · ~${fmtBRL(it.transit_cost_cents)}` : ""}</span>
+                            {tipOk && <span>{it.transit_tip}</span>}
+                            {prev?.lat != null && it.lat != null && <a className="font-semibold text-blue" href={mapsRouteUrl({ lat: prev.lat!, lng: prev.lng! }, { lat: it.lat!, lng: it.lng! }, it.transport_mode)}>Ver rota agora ↗</a>}
+                          </div>
+                        );
+                      })()}
+                      <div className="flex gap-3 rounded-xl border border-line px-3.5 py-2.5">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="text-[10px] font-semibold uppercase tracking-wider text-gray">
@@ -261,17 +310,35 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
                         {it.why && <p className="mt-1 text-[12px] italic leading-snug text-gray">{it.why}</p>}
                         {it.notes && <p className="mt-1 text-[12px] text-navy">📝 {it.notes}</p>}
                         <div className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-gray">
-                          {k > 0 && it.travel_before > 0 && <span>Chegada: {modeLabel(it.transport_mode)}, {fmtDuration(it.travel_before)}</span>}
                           {it.opening_hours && <span>Horário: {humanHours(it.opening_hours)}</span>}
                           {it.lat != null && <a className="font-semibold text-blue" href={`https://www.google.com/maps/search/?api=1&query=${it.lat},${it.lng}`}>Abrir no mapa ↗</a>}
                         </div>
+                      </div>
+                      {it.photo_url && (
+                        <figure className="w-[118px] shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={it.photo_url} alt={it.title} className="h-[84px] w-[118px] rounded-lg object-cover" loading="eager" />
+                          {it.photo_credit && <figcaption className="mt-0.5 line-clamp-2 text-[7px] leading-tight text-gray">{it.photo_credit}</figcaption>}
+                        </figure>
+                      )}
+                      </div>
                       </div>
                     </li>
                   );
                 })}
               </ol>
             )}
-            {res.costCents > 0 && <div className="keep-with-prev mono mt-2 text-right text-xs text-gray">Estimativa do dia: <b className="text-navy">{fmtBRL(res.costCents)}</b> por pessoa</div>}
+            {(() => {
+              const sp = daySplits[di];
+              const tot = sp.comida + sp.passeios + sp.hospedagem + sp.transporte;
+              if (!tot) return null;
+              return (
+                <div className="keep-with-prev mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[11px] text-gray">
+                  {SPLIT_LABEL.filter(([k]) => sp[k] > 0).map(([k, l]) => <span key={k}>{l}: <b className="mono text-navy">{fmtBRL(sp[k])}</b></span>)}
+                  <span className="rounded-md bg-blue-50 px-2 py-0.5 text-xs text-blue">Total do dia: <b className="mono">{fmtBRL(tot)}</b> por pessoa</span>
+                </div>
+              );
+            })()}
           </section>
         );
       })}
@@ -331,6 +398,32 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
         <footer className="border-t border-line pt-4 text-center text-[10px] text-gray">
           Gerado pelo Rotta 365 em {fmtDate(addDays(new Date().toISOString().slice(0, 10), 0))} · lugares e mapas © colaboradores do OpenStreetMap e Wikidata · rotta365.com.br
         </footer>
+      </section>
+
+      {/* ---------- OBRIGADO + INDICAÇÃO ---------- */}
+      <section className="sheet page-break mt-6 overflow-hidden rounded-3xl border border-line bg-white shadow-[var(--shadow-card)]">
+        <div className="hero-gradient relative px-9 pb-9 pt-10 text-white">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75">Obrigado por viajar com a gente</div>
+          <h2 className="mt-2 pr-0 font-display text-[34px] font-extrabold leading-tight sm:pr-44 print:pr-44">Boa viagem{owner?.name ? `, ${owner.name.split(" ")[0]}` : ""}! ✈️</h2>
+          <p className="mt-3 max-w-[460px] text-[15px] leading-relaxed text-white/90">Foi um prazer montar este roteiro com você. Aproveite cada parada, e se algo mudar no caminho, é só me chamar no app que eu reorganizo o dia na hora.</p>
+          <p className="mt-2 text-sm text-white/80">— Pino, do Rotta 365</p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/pino.png" alt="" className="absolute bottom-0 right-8 hidden sm:block print:block" style={{ height: 150 }} />
+        </div>
+        <div className="flex items-center gap-6 px-9 py-8">
+          <div className="flex-1">
+            <div className="label mb-1">Indique o Rotta 365</div>
+            <h3 className="font-display text-2xl font-extrabold leading-tight">Gostou? Indique para um amigo e <span className="text-blue">os dois ganham um roteiro grátis.</span></h3>
+            <p className="mt-2 text-sm text-gray">Quem você indicar ganha 1 crédito extra na primeira compra, e você ganha 1 crédito também. É só compartilhar o seu link ou este QR Code.</p>
+            <div className="mono mt-3 inline-block rounded-lg bg-ice px-3 py-2 text-sm font-semibold text-navy">{referralUrl.replace(/^https?:\/\//, "")}</div>
+          </div>
+          <div className="text-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={referralQr} alt="QR Code do link de indicação" width={128} height={128} />
+            <div className="mt-1 text-[10px] text-gray">Aponte a câmera</div>
+          </div>
+        </div>
+        <div className="border-t border-line px-9 py-4 text-center text-[11px] text-gray">Sua opinião ajuda muito: conte como foi a viagem respondendo a notificação do app ou pelo rotta365.com.br.</div>
       </section>
     </div>
   );

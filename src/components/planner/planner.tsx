@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { Wand2, Undo2, Redo2, AlertTriangle, CloudRain, Sun, Lightbulb, RefreshCw, Feather, PiggyBank, Loader2, MessageCircle } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { cascade, optimizeDay, type Conflict } from "@/lib/domain/schedule";
-import { suggestMode } from "@/lib/domain/geo";
+import { suggestMode, modeLabel, mapsRouteUrl } from "@/lib/domain/geo";
 import { TripPlaces } from "@/lib/domain/dedupe";
 import { fmtDuration, weekdayShort, fmtDateShort } from "@/lib/domain/time";
 import { fmtBRL } from "@/lib/domain/settle";
@@ -288,7 +288,17 @@ export function Planner(p: Props) {
                 onDragStart={() => { dragId.current = it.id; }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => { e.stopPropagation(); if (dragId.current && dragId.current !== it.id) reorder(dragId.current, idx); dragId.current = null; }}>
-                {idx > 0 && it.travel_before > 0 && <div className="mono py-1 pl-6 text-[11px] text-gray">↓ {it.transport_mode === "a_pe" ? "a pé" : it.transport_mode?.replace("_", " ")} · {it.travel_before} min</div>}
+                {idx > 0 && it.travel_before > 0 && (() => {
+                  const prev = computed.items[idx - 1];
+                  const tipOk = it.transit_tip && it.transit_from === prev?.title;
+                  return (
+                    <div className="flex flex-wrap items-baseline gap-x-2 py-1 pl-6 text-[11px] text-gray">
+                      <span className="mono">↓ {modeLabel(it.transport_mode)} · {fmtDuration(it.travel_before)}{tipOk && it.transit_cost_cents ? ` · ~${fmtBRL(it.transit_cost_cents)}` : ""}</span>
+                      {tipOk && <span>{it.transit_tip}</span>}
+                      {prev?.lat != null && it.lat != null && <a className="font-semibold text-blue" target="_blank" rel="noreferrer" href={mapsRouteUrl({ lat: prev.lat!, lng: prev.lng! }, { lat: it.lat!, lng: it.lng! }, it.transport_mode)}>Ver rota ↗</a>}
+                    </div>
+                  );
+                })()}
                 {free && free.minutes >= 30 && <div className="mb-2 rounded-xl border border-dashed border-teal/50 bg-teal-50/50 px-3 py-2 text-xs text-[#0b7f84]">Tempo livre {free.start}–{free.end} ({fmtDuration(free.minutes)})</div>}
                 <ItemCard
                   item={it}

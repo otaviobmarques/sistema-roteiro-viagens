@@ -87,6 +87,11 @@ export type Item = {
   notes: string | null;
   position: number;
   updated_at?: string;
+  photo_url?: string | null;
+  photo_credit?: string | null;
+  transit_tip?: string | null;
+  transit_from?: string | null;
+  transit_cost_cents?: number | null;
 };
 
 export type ItemOption = {
