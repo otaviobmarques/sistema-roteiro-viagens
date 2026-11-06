@@ -302,7 +302,8 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
     const dest = inputs.find((x) => x.id === day.destId);
     day.items.forEach((it, idx) => {
       const prev = day.items[idx - 1];
-      if (!prev || it.kind === "trajeto" || prev.kind === "nota" || prev.kind === "livre") return;
+      // depois do trecho entre cidades (trem/voo) o ponto de partida é outra cidade: não vira dica local
+      if (!prev || it.kind === "trajeto" || prev.kind === "trajeto" || prev.kind === "nota" || prev.kind === "livre") return;
       const a = ll(prev), c = ll(it);
       if (!a || !c) return;
       legIns.push({ key: `${di}-${idx}`, city: dest?.city ?? "", country: dest?.country ?? null, from: prev.title, to: it.title, mode: it.transport_mode ?? "a_pe", minutes: it.travel_min ?? 0, km: Math.round(haversineKm(a, c) * 10) / 10 });
