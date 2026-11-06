@@ -39,7 +39,8 @@ export function ProfilesClient(p: { tripId: string; current: string; canEdit: bo
   }, [p, optsByItem]);
 
   const sample = (prof: string, kind: string) => {
-    const it = p.items.find((i) => i.kind === kind && optsByItem.get(i.id)?.some((o) => o.travel_profile === prof));
+    const kinds = kind === "lugar" ? ["lugar", "atividade"] : [kind];
+    const it = p.items.find((i) => kinds.includes(i.kind) && optsByItem.get(i.id)?.some((o) => o.travel_profile === prof));
     return it ? optsByItem.get(it.id)!.find((o) => o.travel_profile === prof)!.title : "—";
   };
 
@@ -141,7 +142,7 @@ export function ProfilesClient(p: { tripId: string; current: string; canEdit: bo
                 {best && (
                   <div className="mt-2 flex items-start gap-2 rounded-xl bg-ice px-3 py-2 text-xs">
                     <PinoAvatar size={20} />
-                    <span><b>Por que {best.score?.toFixed(1)}:</b> {explainScore({ quality: best.score_quality ?? 6, fit: (best.score ?? 6) * 2 - (best.score_quality ?? 6), profileLabel: TRAVEL_PROFILES[best.travel_profile as keyof typeof TRAVEL_PROFILES]?.label ?? "", inBudget: best.travel_profile === p.current })}. Nota de qualidade da base própria (OpenStreetMap/Wikidata).</span>
+                    <span><b>Por que {best.score?.toFixed(1)}:</b> {explainScore({ quality: best.score_quality ?? 6, fit: (best.score ?? 6) * 2 - (best.score_quality ?? 6), profileLabel: TRAVEL_PROFILES[best.travel_profile as keyof typeof TRAVEL_PROFILES]?.label ?? "", inBudget: true })}. Nota de qualidade da base própria (OpenStreetMap/Wikidata).</span>
                   </div>
                 )}
               </div>

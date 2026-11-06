@@ -26,7 +26,7 @@ const ItemSchema = z.object({
   kind: z.string().describe("um destes: lugar, atividade, refeicao, hospedagem, nota, livre"),
   title: z.string(),
   duration_min: z.number().int(),
-  fixed_time: z.string().nullable().describe("HH:MM apenas se o horário for fixo (ingresso com hora, reserva); senão null"),
+  fixed_time: z.string().nullable().describe("HH:MM só para ingresso com hora marcada ou reserva já feita; refeições e visitas comuns = null"),
   cost_brl: z.number().describe("custo estimado por pessoa em reais no perfil da viagem"),
   must_have: z.boolean(),
   why: z.string().describe("por que o Pino escolheu: interesses atendidos, encaixe no orçamento e na rota; até 22 palavras"),
@@ -256,7 +256,7 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
         items.push({
           id: crypto.randomUUID(), title: cand?.name ?? it.title, kind: it.kind, day_date: pd.date,
           lat: cand?.lat ?? null, lng: cand?.lng ?? null, duration_min: Math.max(15, Math.min(it.duration_min, 600)),
-          anchor: !!it.fixed_time, anchor_time: it.fixed_time, opening_hours: cand?.opening_hours ?? null, outdoor: cand?.outdoor ?? false,
+          anchor: !!it.fixed_time && it.kind !== "refeicao", anchor_time: it.kind !== "refeicao" ? it.fixed_time : null, opening_hours: cand?.opening_hours ?? null, outdoor: cand?.outdoor ?? false,
           candidate: cand, cost_cents: Math.round(it.cost_brl * 100), must_have: it.must_have, why: it.why,
           score: quality != null && fit != null ? forYouScore(quality, fit) : null, interest_category: cand?.interest ?? null,
           verified: !!cand, options: opts,
