@@ -39,7 +39,9 @@ export function LoginForm({ next, initialMode }: { next: string; initialMode: "e
         if (data.session) router.replace("/app/onboarding");
         else setMsg({ tone: "ok", text: "Conta criada! Confirme pelo link que enviamos ao seu e-mail e depois entre." });
       } else {
-        const { error } = await sb.auth.signInWithPassword({ email, password });
+        // aceita nome de usuário (ex.: "admin") além de e-mail
+        const login = email.includes("@") ? email.trim() : `${email.trim().toLowerCase()}@usuarios.rotta365.app`;
+        const { error } = await sb.auth.signInWithPassword({ email: login, password });
         if (error) throw error;
         router.replace(safeNext);
         router.refresh();
@@ -76,8 +78,8 @@ export function LoginForm({ next, initialMode }: { next: string; initialMode: "e
           <label className="block"><span className="mb-1 block text-xs font-semibold">Como podemos te chamar?</span>
             <input className="input" value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" /></label>
         )}
-        <label className="block"><span className="mb-1 block text-xs font-semibold">E-mail</span>
-          <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" placeholder="voce@exemplo.com" /></label>
+        <label className="block"><span className="mb-1 block text-xs font-semibold">{mode === "entrar" && !useLink ? "E-mail ou usuário" : "E-mail"}</span>
+          <input className="input" type={mode === "entrar" && !useLink ? "text" : "email"} value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete={mode === "entrar" ? "username" : "email"} autoCapitalize="none" placeholder={mode === "entrar" && !useLink ? "voce@exemplo.com ou usuário" : "voce@exemplo.com"} /></label>
         {!useLink && (
           <label className="block"><span className="mb-1 block text-xs font-semibold">Senha</span>
             <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} autoComplete={mode === "criar" ? "new-password" : "current-password"} /></label>
