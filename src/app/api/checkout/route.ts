@@ -22,10 +22,12 @@ export async function POST(req: Request) {
   if (cpf && cpf.length !== 11 && cpf.length !== 14) return NextResponse.json({ error: "CPF/CNPJ inválido." }, { status: 400 });
   const { data: product } = await supabase.from("products").select("*").eq("id", productId).eq("active", true).maybeSingle();
   if (!product) return NextResponse.json({ error: "Produto inválido." }, { status: 400 });
-  const { data: profile } = await supabase.from("profiles").select("name").eq("id", auth.user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("name, is_admin").eq("id", auth.user.id).single();
 
   const cfg = await paymentConfig(true).catch(() => null);
   if (!cfg) return NextResponse.json({ error: "Pagamentos indisponíveis no momento." }, { status: 503 });
+  // Em modo Teste o código Pix é do ambiente de testes e banco nenhum aceita: só o administrador pode gerar.
+  if (cfg.env === "sandbox" && !profile?.is_admin) return NextResponse.json({ error: "As compras estão em manutenção por alguns minutos. Tente novamente mais tarde." }, { status: 503 });
   const site = process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin;
   const input: ChargeInput = { userId: auth.user.id, email: auth.user.email!, name: profile?.name || auth.user.email!, cpf: cpf || undefined, productId: product.id, productName: product.name, amountCents: product.price_cents, siteUrl: site };
 

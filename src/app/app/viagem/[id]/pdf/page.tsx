@@ -20,6 +20,20 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 
 const KIND_LABEL: Record<string, string> = { lugar: "Visita", atividade: "Atividade", refeicao: "Refeição", trajeto: "Trajeto", hospedagem: "Hospedagem", nota: "Nota", livre: "Tempo livre" };
+// "Mo-Su 11:00-23:30" (formato do OpenStreetMap) -> "todos os dias 11:00–23:30"
+const DAY_PT: Record<string, string> = { Mo: "seg", Tu: "ter", We: "qua", Th: "qui", Fr: "sex", Sa: "sáb", Su: "dom", PH: "feriados" };
+function humanHours(oh: string): string {
+  let t = oh.trim().replace(/\bMo-Su\b/g, "todos os dias").replace(/\b24\/7\b/, "aberto 24h");
+  t = t.replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su|PH)\b/g, (d) => DAY_PT[d]);
+  t = t.replace(/(seg|ter|qua|qui|sex|sáb|dom)-(seg|ter|qua|qui|sex|sáb|dom)/g, "$1 a $2");
+  t = t.replace(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/g, "$1–$2").replace(/\boff\b/gi, "fechado").replace(/\s*;\s*/g, " · ").replace(/,(?=\S)/g, ", ");
+  return t.length > 60 ? `${t.slice(0, 58)}…` : t;
+}
+const fmtKm = (km: number) => km.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const fmtReais = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0, minimumFractionDigits: 0 });
+const isBrazil = (c?: string | null) => !c || /^(brasil|brazil|br)$/i.test(c.trim());
+const isNorthAmerica = (c?: string | null) => !!c && /estados unidos|eua|usa|united states|canad/i.test(c);
+
 const BAR = ["#205BFF", "#2F6BFF", "#0B7F84", "#0A1F4C", "#11C2C8", "#3A4D7A"];
 
 export default async function PdfPage({ params }: { params: Promise<{ id: string }> }) {
@@ -45,7 +59,10 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
   const legs = transferLegs(destinations.filter((d) => d.lat != null).map((d) => ({ id: d.id, city: d.city, lat: d.lat!, lng: d.lng! })));
   const totalDays = destinations.reduce((s, d) => s + (d.days ?? 0), 0) || days.length;
   const summary = (preview?.output as { summary?: string } | null)?.summary;
-  const occasion = (prefs as { occasion?: string | null } | null)?.occasion;
+  const occasionRaw = (prefs as { occasion?: string | null } | null)?.occasion;
+  // não mostra "sozinho" quando a viagem tem mais de uma pessoa
+  const occasion = occasionRaw && /sozinh/i.test(occasionRaw) && people > 1 ? null : occasionRaw;
+  const abroad = destinations.filter((d) => !isBrazil(d.country));
   const highlights = items
     .filter((i) => (i.kind === "lugar" || i.kind === "atividade") && i.score != null)
     .sort((a, b) => Number(b.score) - Number(a.score))
@@ -65,6 +82,8 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
           .sheet { box-shadow: none !important; border: 0 !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; }
           .page-break { break-before: page; }
           .avoid { break-inside: avoid; }
+          .keep-with-prev { break-before: avoid; }
+          .report { zoom: 0.9; }
         }
       `}</style>
 
@@ -84,9 +103,9 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
             <img src="/brand/logo.png" alt="Rotta 365" style={{ height: 34 }} />
           </div>
           <div className="mt-10 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75">Roteiro de viagem{occasion ? ` · ${occasion}` : ""}</div>
-          <h1 className="mt-2 font-display text-[44px] font-extrabold leading-[1.05]">{trip.title}</h1>
-          <p className="mono mt-2 text-sm text-white/85">{tripPeriod(trip)} · {totalDays} dias · {people} viajante{people > 1 ? "s" : ""} · perfil {PROFILE_LABEL[prefs?.travel_profile ?? "classica"]}</p>
-          <div className="mt-6 flex overflow-hidden rounded-xl text-[12px] font-semibold">
+          <h1 className="mt-2 pr-0 sm:pr-44 print:pr-44 font-display text-[44px] font-extrabold leading-[1.05]">{trip.title}</h1>
+          <p className="mono mt-2 pr-0 text-sm text-white/85 sm:pr-44 print:pr-44">{tripPeriod(trip)} · {totalDays} dias · {people} viajante{people > 1 ? "s" : ""} · perfil {PROFILE_LABEL[prefs?.travel_profile ?? "classica"]}</p>
+          <div className="mt-6 flex overflow-hidden rounded-xl text-[12px] font-semibold sm:mr-44 print:mr-44">
             {destinations.map((d, i) => (
               <div key={d.id} className="truncate px-3 py-2.5" style={{ flex: d.days ?? 1, background: i % 2 ? "rgba(255,255,255,.18)" : "rgba(255,255,255,.28)" }}>
                 {d.city} · {d.days}d
@@ -96,12 +115,12 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/brand/pino.png" alt="" className="absolute bottom-0 right-8 hidden sm:block print:block" style={{ height: 150 }} />
         </div>
-        <div className="grid grid-cols-2 gap-3 px-9 py-6 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 px-9 py-6 sm:grid-cols-4 print:grid-cols-4">
           {[
             ["Dias", String(totalDays)],
             ["Lugares", String(places)],
             ["Viabilidade", trip.viability_score != null ? `${trip.viability_score}/100` : "—"],
-            ["Estimativa p/ pessoa", totalCost ? fmtBRL(totalCost, { compact: true }) : "—"],
+            ["Estimativa p/ pessoa", totalCost ? fmtReais(totalCost) : "—"],
           ].map(([l, v]) => (
             <div key={l} className="rounded-xl border border-line px-3 py-2.5">
               <div className="label">{l}</div>
@@ -112,15 +131,14 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
         {highlights.length > 0 && (
           <div className="border-t border-line px-9 py-6">
             <div className="label mb-3">Destaques da viagem</div>
-            <ol className="grid gap-2 sm:grid-cols-2">
+            <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2 print:grid-cols-2">
               {highlights.map((h, i) => (
-                <li key={h.id} className="flex items-center gap-3 rounded-xl border border-line px-3 py-2">
+                <li key={h.id} className="avoid flex min-w-0 items-center gap-3 rounded-xl border border-line px-3 py-2">
                   <span className="mono flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue text-xs font-semibold text-white">{i + 1}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-bold">{h.title}</span>
                     <span className="mono text-[11px] text-gray">Dia {h.dayN}{h.category ? ` · ${h.category}` : ""}</span>
                   </span>
-                  <span className="mono rounded-md bg-blue-50 px-1.5 text-xs font-semibold text-blue">{Number(h.score).toFixed(1)}</span>
                 </li>
               ))}
             </ol>
@@ -207,7 +225,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
                 {dest && <div className="text-sm text-gray">{dest.city}{dest.country ? `, ${dest.country}` : ""}</div>}
               </div>
               <div className="mono text-right text-[11px] uppercase text-gray">
-                {res.items.length} paradas<br />{res.walkKm.toFixed(1)} km a pé · {fmtDuration(res.travelMinutes)} em trajetos
+                {res.items.length} paradas<br />{[res.walkKm >= 0.1 ? `${fmtKm(res.walkKm)} km a pé` : null, res.travelMinutes > 0 ? `${fmtDuration(res.travelMinutes)} em trajetos` : null].filter(Boolean).join(" · ")}
               </div>
             </div>
 
@@ -217,7 +235,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
                   const b = badge(it.score);
                   const last = k === res.items.length - 1;
                   return (
-                    <li key={it.id} className="avoid relative flex gap-4 pb-4">
+                    <li key={it.id} className="avoid relative flex gap-4 pb-3">
                       <div className="w-[68px] shrink-0 text-right">
                         <div className="mono text-[15px] font-semibold">{it.start}</div>
                         <div className="mono text-[11px] text-gray">até {it.end}</div>
@@ -235,7 +253,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
                             <div className="text-[15px] font-bold leading-snug">{it.title}</div>
                           </div>
                           <div className="shrink-0 text-right">
-                            {it.score != null && <div className="mono rounded-md bg-blue-50 px-1.5 text-xs font-semibold text-blue">{Number(it.score).toFixed(1)}{b ? ` · ${b.label}` : ""}</div>}
+                            {b && <div className="rounded-md bg-blue-50 px-1.5 text-xs font-semibold text-blue">{b.label}</div>}
                             {!!it.cost_cents && <div className="mono mt-0.5 text-xs text-gray">{fmtBRL(it.cost_cents)}</div>}
                           </div>
                         </div>
@@ -243,7 +261,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
                         {it.notes && <p className="mt-1 text-[12px] text-navy">📝 {it.notes}</p>}
                         <div className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-gray">
                           {k > 0 && it.travel_before > 0 && <span>Chegada: {modeLabel(it.transport_mode)}, {fmtDuration(it.travel_before)}</span>}
-                          {it.opening_hours && <span>Horário: {it.opening_hours.length > 48 ? `${it.opening_hours.slice(0, 46)}…` : it.opening_hours}</span>}
+                          {it.opening_hours && <span>Horário: {humanHours(it.opening_hours)}</span>}
                           {it.lat != null && <a className="font-semibold text-blue" href={`https://www.google.com/maps/search/?api=1&query=${it.lat},${it.lng}`}>Abrir no mapa ↗</a>}
                         </div>
                       </div>
@@ -252,7 +270,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
                 })}
               </ol>
             )}
-            {res.costCents > 0 && <div className="mono mt-2 text-right text-xs text-gray">Estimativa do dia: <b className="text-navy">{fmtBRL(res.costCents)}</b> por pessoa</div>}
+            {res.costCents > 0 && <div className="keep-with-prev mono mt-2 text-right text-xs text-gray">Estimativa do dia: <b className="text-navy">{fmtBRL(res.costCents)}</b> por pessoa</div>}
           </section>
         );
       })}
@@ -302,10 +320,10 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
           <div>
             <h2 className="font-display text-xl font-extrabold">Emergência</h2>
             <ul className="mt-2 space-y-1 text-sm">
-              <li><b className="mono">112</b> <span className="text-gray">· Europa (polícia, ambulância, bombeiros)</span></li>
-              <li><b className="mono">911</b> <span className="text-gray">· Estados Unidos e Canadá</span></li>
-              <li><b className="mono">190 · 192 · 193</b> <span className="text-gray">· Brasil (polícia, SAMU, bombeiros)</span></li>
-              <li className="text-gray">Consulados do Brasil no exterior: gov.br/mre</li>
+              {destinations.some((d) => isBrazil(d.country)) && <li><b className="mono">190 · 192 · 193</b> <span className="text-gray">· Brasil (polícia, SAMU, bombeiros)</span></li>}
+              {abroad.some((d) => isNorthAmerica(d.country)) && <li><b className="mono">911</b> <span className="text-gray">· Estados Unidos e Canadá</span></li>}
+              {abroad.some((d) => !isNorthAmerica(d.country)) && <li><b className="mono">112</b> <span className="text-gray">· emergência na Europa e em muitos outros países</span></li>}
+              {abroad.length > 0 && <li className="text-gray">Consulados do Brasil no exterior: gov.br/mre</li>}
             </ul>
           </div>
         </div>

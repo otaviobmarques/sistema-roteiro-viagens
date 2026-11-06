@@ -27,6 +27,8 @@ export default async function WalletPage({ searchParams }: { searchParams: Promi
   const { trip: tripId } = await searchParams;
   const { supabase, user } = await requireUser();
   const pay = await paymentConfig().catch(() => null);
+  const { data: me } = await supabase.from("profiles").select("is_admin").eq("id", user.id).maybeSingle();
+  const salesPaused = pay?.env !== "producao" && !me?.is_admin;
   const [{ data: wallet }, { data: products }, { data: txs }, { data: orders }, tripRes] = await Promise.all([
     supabase.from("credit_wallets").select("balance, updated_at").eq("user_id", user.id).maybeSingle(),
     supabase.from("products").select("*").eq("active", true).order("price_cents"),
@@ -80,7 +82,9 @@ export default async function WalletPage({ searchParams }: { searchParams: Promi
         <section className="card p-5" aria-labelledby="comprar">
           <h2 id="comprar" className="text-lg font-bold">Comprar roteiros</h2>
           <p className="mb-4 text-sm text-gray">O resto do app é grátis: planejar à mão, convidar o grupo, dividir gastos e acertar via Pix.</p>
-          <Checkout testMode={pay?.env !== "producao"} pixAvailable={pay ? pixProviders(pay).length > 0 : false} cardAvailable={pay ? !!cardProvider(pay) : false} products={(products ?? []).map((p) => ({ id: p.id, name: p.name, credits: p.credits, price_cents: p.price_cents }))} />
+          {salesPaused ? (
+            <p className="rounded-xl bg-ice px-3 py-3 text-sm text-gray">As compras estão em manutenção por alguns minutos. Volte daqui a pouco para comprar seus créditos.</p>
+          ) : <Checkout testMode={pay?.env !== "producao"} pixAvailable={pay ? pixProviders(pay).length > 0 : false} cardAvailable={pay ? !!cardProvider(pay) : false} products={(products ?? []).map((p) => ({ id: p.id, name: p.name, credits: p.credits, price_cents: p.price_cents }))} />}
         </section>
       </div>
 
