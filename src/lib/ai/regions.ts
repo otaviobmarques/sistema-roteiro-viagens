@@ -4,7 +4,7 @@ import { askJSON, PINO_VOICE, type AIUsage } from "./claude";
 
 const Schema = z.object({
   cities: z.array(z.object({
-    city: z.string().describe("nome da cidade em português, só a cidade (ex.: Paris, Florença)"),
+    city: z.string().describe("nome da cidade como o brasileiro conhece, só a cidade (ex.: Paris, Lyon, Florença, Nova York)"),
     days: z.number().int().min(1),
     why: z.string().describe("motivo em até 12 palavras"),
   })).min(1).max(5),

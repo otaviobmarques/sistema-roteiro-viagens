@@ -38,7 +38,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       const found: typeof next = [];
       for (const c of cities) {
         const cg = await geocode(`${c.city}, ${d.country ?? d.city}`);
-        if (cg && !cg.region && !found.some((x) => x.city === cg.name)) found.push({ city: cg.name, country: cg.country ?? d.country, lat: cg.lat, lng: cg.lng, days: c.days, locked: false });
+        if (cg && !cg.region && !found.some((x) => x.city === (c.city.trim() || cg.name))) found.push({ city: c.city.trim() || cg.name, country: cg.country ?? d.country, lat: cg.lat, lng: cg.lng, days: c.days, locked: false });
       }
       if (found.length) {
         // mantém o total de dias do destino original

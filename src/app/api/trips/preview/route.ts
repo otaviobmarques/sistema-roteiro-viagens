@@ -71,9 +71,11 @@ export async function POST(req: Request) {
       const cityGeos: Geo[] = [];
       for (const c of cities) {
         const cg = await geocode(`${c.city}, ${g.country ?? g.name}`);
-        if (cg && !cg.region && !geos.some((x) => x.name === cg.name) && !cityGeos.some((x) => x.name === cg.name)) {
-          cityGeos.push(cg);
-          regionDays.set(cg.name, c.days);
+        // nome como o brasileiro conhece (ex.: "Lyon", não "Lião"), com as coordenadas da base aberta
+        const named = cg ? { ...cg, name: c.city.trim() || cg.name } : null;
+        if (named && !named.region && !geos.some((x) => x.name === named.name) && !cityGeos.some((x) => x.name === named.name)) {
+          cityGeos.push(named);
+          regionDays.set(named.name, c.days);
         }
       }
       if (cityGeos.length) { geos.push(...cityGeos); expandedFrom.push(g.name); } else geos.push(g);
