@@ -42,3 +42,4 @@ next-env.d.ts
 
 # relatórios de exemplo gerados localmente
 *.pdf
+entregas/
