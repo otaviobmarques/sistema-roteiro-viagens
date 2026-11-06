@@ -26,6 +26,12 @@ describe("cascata de horários (8.1)", () => {
     expect(r.score).toBe(85);
   });
 
+  it("almoço não começa antes das 12:00 e jantar não antes das 19:00", () => {
+    const r = cascade([item("museu"), item("almoco", { kind: "refeicao" }), item("parque"), item("jantar", { kind: "refeicao" })], { dayStart: "09:00" });
+    expect(r.items.map((i) => i.start)).toEqual(["09:00", "12:00", "13:00", "19:00"]);
+    expect(r.freeBlocks.length).toBe(2);
+  });
+
   it("cria bloco de tempo livre antes de uma âncora", () => {
     const r = cascade([item("a"), item("show", { anchor: true, anchor_time: "14:00" })], { dayStart: "09:00" });
     expect(r.freeBlocks[0]).toMatchObject({ start: "10:00", end: "14:00", minutes: 240 });
@@ -66,6 +72,11 @@ describe("otimização da ordem (8.2)", () => {
     expect(r.changed).toBe(true);
     expect(r.items.map((i) => i.id)).toEqual(["A", "B", "C", "D"]);
     expect(r.savedMinutes).toBeGreaterThan(0);
+  });
+  it("não move refeições (o almoço continua entre as visitas)", () => {
+    const day = [pts[0], pts[1], { ...item("almoco", { lat: 38.70, lng: -9.21 }), kind: "refeicao" }, pts[2], pts[3]];
+    const r = optimizeDay(day);
+    expect(r.items[2].id).toBe("almoco");
   });
   it("mantém âncoras no lugar", () => {
     const withAnchor = [pts[0], pts[1], { ...pts[2], anchor: true, anchor_time: "15:00" }, pts[3]];

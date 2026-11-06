@@ -98,7 +98,7 @@ export function AppShell({ children, userName, avatarUrl, credits, unread, isAdm
   );
 
   return (
-    <div className="min-h-dvh md:grid md:grid-cols-[250px_1fr]">
+    <div className="app-shell min-h-dvh md:grid md:grid-cols-[250px_1fr]">
       <aside className="sticky top-0 hidden h-dvh border-r border-line/70 bg-ice/70 backdrop-blur md:block no-print">{sidebar}</aside>
       {open && (
         <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">

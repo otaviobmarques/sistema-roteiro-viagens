@@ -52,6 +52,10 @@ const PACE_LIMITS: Record<string, { activeMin: number; walkKm: number }> = {
 
 const SEVERITY_PENALTY: Record<Severity, number> = { alta: 15, media: 6, baixa: 2 };
 
+function isBreakfast(i: ScheduleItem) {
+  return /caf[eé] da manh|breakfast|pequeno.almo/i.test(i.title);
+}
+
 function coords(i: ScheduleItem): LatLng | null {
   return i.lat != null && i.lng != null ? { lat: i.lat, lng: i.lng } : null;
 }
@@ -86,6 +90,8 @@ export function cascade<T extends ScheduleItem>(items: T[], ctx: DayContext = {}
   let walkKm = 0;
   let active = 0;
   let cost = 0;
+  let meals = 0;
+  const totalMeals = items.filter((i) => i.kind === "refeicao" && !isBreakfast(i)).length;
 
   items.forEach((item, idx) => {
     const prev = items[idx - 1];
@@ -125,6 +131,16 @@ export function cascade<T extends ScheduleItem>(items: T[], ctx: DayContext = {}
       start = fixed;
     } else if (idx === 0) {
       start = dayStart;
+    }
+
+    // Refeições em horário de refeição: almoço a partir das 12:00, jantar a partir das 19:00 (sobra vira tempo livre)
+    if (item.kind === "refeicao" && !item.anchor && !isBreakfast(item)) {
+      const earliest = meals === 0 && totalMeals >= 1 && (totalMeals > 1 || start < 16 * 60) ? 12 * 60 : 19 * 60;
+      meals++;
+      if (start < earliest) {
+        if (earliest - start >= 20) freeBlocks.push({ after: prev?.id ?? null, start: fromMin(start), end: fromMin(earliest), minutes: earliest - start });
+        start = earliest;
+      }
     }
 
     const end = start + item.duration_min;
@@ -229,9 +245,9 @@ function optimizeSegment(start: ScheduleItem | undefined, free: ScheduleItem[], 
 
 export type OptimizeResult<T extends ScheduleItem> = { items: T[]; savedMinutes: number; changed: boolean };
 
-/** 8.2 Otimização: âncoras e hospedagem ficam travadas no lugar; só aceita se não piorar conflitos de severidade alta. */
+/** 8.2 Otimização: âncoras, refeições e hospedagem ficam travadas no lugar (almoço continua no almoço); só aceita se não piorar conflitos de severidade alta. */
 export function optimizeDay<T extends ScheduleItem>(items: T[], ctx: DayContext = {}): OptimizeResult<T> {
-  const isFixed = (i: ScheduleItem, idx: number) => !!i.anchor || (i.kind === "hospedagem" && (idx === 0 || idx === items.length - 1));
+  const isFixed = (i: ScheduleItem, idx: number) => !!i.anchor || i.kind === "refeicao" || i.kind === "trajeto" || (i.kind === "hospedagem" && (idx === 0 || idx === items.length - 1));
   const result: T[] = [];
   let segment: T[] = [];
   let lastFixed: T | undefined;

@@ -104,6 +104,7 @@ h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0
 @media print {
   body { background: #fff !important; }
   .no-print { display: none !important; }
+  .app-shell { display: block !important; min-height: 0 !important; }
   .card { box-shadow: none !important; break-inside: avoid; }
 }
 
