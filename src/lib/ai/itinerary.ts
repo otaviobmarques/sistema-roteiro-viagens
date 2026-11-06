@@ -124,6 +124,35 @@ ${candidateLines(cands, codes, offset)}`;
   return r;
 }
 
+/**
+ * Refeição sem restaurante na lista ("Almoço livre no bairro"): a IA às vezes manda como tempo livre e fora de hora.
+ * Vira refeição (respeita as janelas de almoço e jantar) e vai para o lugar certo do dia.
+ * Se o dia já tem um restaurante de verdade para aquela refeição, o marcador sai.
+ */
+const MEAL_RE = { almoco: /almo[cç]o/i, jantar: /jantar/i, cafe: /caf[eé] da manh/i };
+function placeMealPlaceholders(items: SavedItem[]): SavedItem[] {
+  const isPh = (it: SavedItem) => !it.candidate && ["livre", "nota", "refeicao"].includes(it.kind) && (MEAL_RE.almoco.test(it.title) || MEAL_RE.jantar.test(it.title) || MEAL_RE.cafe.test(it.title));
+  const ph = items.filter(isPh);
+  if (!ph.length) return items;
+  const rest = items.filter((it) => !isPh(it));
+  const realMeals = rest.filter((it) => it.kind === "refeicao").length;
+  const pick = (re: RegExp) => ph.find((p) => re.test(p.title));
+  const asMeal = (p: SavedItem): SavedItem => ({ ...p, kind: "refeicao", anchor: false, anchor_time: null });
+  const out = [...rest];
+  const cafe = pick(MEAL_RE.cafe);
+  if (cafe) out.splice(out[0]?.kind === "hospedagem" ? 1 : 0, 0, asMeal(cafe));
+  const lunch = pick(MEAL_RE.almoco);
+  const dinner = pick(MEAL_RE.jantar);
+  // com 2 restaurantes reais no dia, almoço e jantar já existem; com 1, falta só o jantar
+  if (lunch && realMeals === 0) {
+    const acts = out.filter((it) => it.kind !== "hospedagem" && it.kind !== "trajeto");
+    const anchor = acts[Math.ceil(acts.length / 2) - 1];
+    out.splice(anchor ? out.indexOf(anchor) + 1 : out.length, 0, asMeal(lunch));
+  }
+  if (dinner && realMeals < 2) out.push(asMeal(dinner));
+  return out;
+}
+
 type SavedItem = ScheduleItem & {
   day_date: string;
   kind: string;
@@ -260,7 +289,7 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
           verified: !!cand, options: opts,
         });
       }
-      daysOut.push({ date: pd.date, destId: d.id, title: pd.title, items, rain: weathers[i][pd.date]?.rain ?? null, holiday: hols[i].has(pd.date) });
+      daysOut.push({ date: pd.date, destId: d.id, title: pd.title, items: placeMealPlaceholders(items), rain: weathers[i][pd.date]?.rain ?? null, holiday: hols[i].has(pd.date) });
     }
   }
 

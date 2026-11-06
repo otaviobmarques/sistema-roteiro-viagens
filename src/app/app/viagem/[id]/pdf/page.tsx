@@ -47,6 +47,9 @@ function splitCosts(items: { kind: string; cost_cents?: number | null; transit_c
 }
 const SPLIT_LABEL: [keyof CostSplit, string][] = [["comida", "Alimentação"], ["passeios", "Passeios e ingressos"], ["hospedagem", "Hospedagem"], ["transporte", "Transporte"]];
 
+// seta em SVG: as fontes do servidor de PDF não têm o caractere →
+const Arrow = () => <svg width="12" height="10" viewBox="0 0 12 10" className="inline-block align-middle" aria-hidden><path d="M1 5h9M6.5 1.5 10 5 6.5 8.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+
 const isBrazil = (c?: string | null) => !c || /^(brasil|brazil|br)$/i.test(c.trim());
 const isNorthAmerica = (c?: string | null) => !!c && /estados unidos|eua|usa|united states|canad/i.test(c);
 
@@ -126,7 +129,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
           </div>
           <div className="mt-10 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75">Roteiro de viagem{occasion ? ` · ${occasion}` : ""}</div>
           <h1 className="mt-2 pr-0 sm:pr-44 print:pr-44 font-display text-[44px] font-extrabold leading-[1.05]">{trip.title}</h1>
-          <p className="mono mt-2 pr-0 text-sm text-white/85 sm:pr-44 print:pr-44">{tripPeriod(trip)} · {totalDays} dias · {people} viajante{people > 1 ? "s" : ""} · perfil {PROFILE_LABEL[prefs?.travel_profile ?? "classica"]}</p>
+          <p className="mono mt-2 pr-0 text-sm text-white/85 sm:pr-44 print:pr-44">{tripPeriod(trip).replace("→", "a")} · {totalDays} dias · {people} viajante{people > 1 ? "s" : ""} · perfil {PROFILE_LABEL[prefs?.travel_profile ?? "classica"]}</p>
           <div className="mt-6 flex overflow-hidden rounded-xl text-[12px] font-semibold sm:mr-44 print:mr-44">
             {destinations.map((d, i) => (
               <div key={d.id} className="truncate px-3 py-2.5" style={{ flex: d.days ?? 1, background: i % 2 ? "rgba(255,255,255,.18)" : "rgba(255,255,255,.28)" }}>
@@ -189,7 +192,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
             {destinations.map((d, i) => (
               <tr key={d.id} className="border-t border-line">
                 <td className="py-2.5"><span className="mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle" style={{ background: BAR[i % BAR.length] }} /><b>{d.city}</b>{d.country ? <span className="text-gray"> · {d.country}</span> : null}</td>
-                <td className="mono py-2.5 text-gray">{fmtDateShort(d.start_date)} → {fmtDateShort(d.end_date)}</td>
+                <td className="mono py-2.5 text-gray">{fmtDateShort(d.start_date)} a {fmtDateShort(d.end_date)}</td>
                 <td className="mono py-2.5 text-right font-semibold">{d.days}</td>
               </tr>
             ))}
@@ -202,7 +205,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
             <ul className="space-y-1.5 text-sm">
               {legs.map((l) => (
                 <li key={l.from + l.to} className="flex justify-between rounded-lg bg-ice px-3 py-2">
-                  <span><b>{destinations.find((d) => d.id === l.from)?.city}</b> → <b>{destinations.find((d) => d.id === l.to)?.city}</b></span>
+                  <span><b>{destinations.find((d) => d.id === l.from)?.city}</b> <Arrow /> <b>{destinations.find((d) => d.id === l.to)?.city}</b></span>
                   <span className="mono text-gray">{l.mode === "aviao" ? "voo" : l.mode === "onibus" ? "ônibus" : l.mode} · {fmtDuration(l.minutes)} · {l.km} km</span>
                 </li>
               ))}
@@ -289,7 +292,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
                           <div className="mb-1.5 flex flex-wrap items-baseline gap-x-2 rounded-lg bg-ice px-2.5 py-1.5 text-[11px] text-gray">
                             <span className="font-semibold text-navy">Como chegar · {modeLabel(it.transport_mode)}, {fmtDuration(it.travel_before)}{tipOk && it.transit_cost_cents ? ` · ~${fmtBRL(it.transit_cost_cents)}` : ""}</span>
                             {tipOk && <span>{it.transit_tip}</span>}
-                            {prev?.lat != null && it.lat != null && <a className="font-semibold text-blue" href={mapsRouteUrl({ lat: prev.lat!, lng: prev.lng! }, { lat: it.lat!, lng: it.lng! }, it.transport_mode)}>Ver rota agora ↗</a>}
+                            {prev?.lat != null && it.lat != null && <a className="font-semibold text-blue" href={mapsRouteUrl({ lat: prev.lat!, lng: prev.lng! }, { lat: it.lat!, lng: it.lng! }, it.transport_mode)}>Ver rota agora</a>}
                           </div>
                         );
                       })()}
@@ -308,10 +311,10 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
                           </div>
                         </div>
                         {it.why && <p className="mt-1 text-[12px] italic leading-snug text-gray">{it.why}</p>}
-                        {it.notes && <p className="mt-1 text-[12px] text-navy">📝 {it.notes}</p>}
+                        {it.notes && <p className="mt-1 text-[12px] text-navy"><b>Nota:</b> {it.notes}</p>}
                         <div className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-gray">
                           {it.opening_hours && <span>Horário: {humanHours(it.opening_hours)}</span>}
-                          {it.lat != null && <a className="font-semibold text-blue" href={`https://www.google.com/maps/search/?api=1&query=${it.lat},${it.lng}`}>Abrir no mapa ↗</a>}
+                          {it.lat != null && <a className="font-semibold text-blue" href={`https://www.google.com/maps/search/?api=1&query=${it.lat},${it.lng}`}>Abrir no mapa</a>}
                         </div>
                       </div>
                       {it.photo_url && (
@@ -355,7 +358,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
                     <td className="w-28 py-2.5 pr-2 text-[11px] font-semibold uppercase tracking-wider text-gray">{RES_KINDS.find((k) => k.id === r.kind)?.label ?? r.kind}</td>
                     <td className="py-2.5">
                       <div className="font-bold">{r.title}</div>
-                      <div className="text-xs text-gray">{r.start_at ? fmtLocal(r.start_at) : ""}{r.end_at ? ` → ${fmtLocal(r.end_at)}` : ""}{r.location ? ` · ${r.location}` : ""}</div>
+                      <div className="text-xs text-gray">{r.start_at ? fmtLocal(r.start_at) : ""}{r.end_at ? ` até ${fmtLocal(r.end_at)}` : ""}{r.location ? ` · ${r.location}` : ""}</div>
                       {r.free_cancel_until && <div className="text-xs text-warn">Cancelamento grátis até {fmtLocal(r.free_cancel_until)}</div>}
                     </td>
                     <td className="py-2.5 text-right">
@@ -404,7 +407,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
       <section className="sheet page-break mt-6 overflow-hidden rounded-3xl border border-line bg-white shadow-[var(--shadow-card)]">
         <div className="hero-gradient relative px-9 pb-9 pt-10 text-white">
           <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75">Obrigado por viajar com a gente</div>
-          <h2 className="mt-2 pr-0 font-display text-[34px] font-extrabold leading-tight sm:pr-44 print:pr-44">Boa viagem{owner?.name ? `, ${owner.name.split(" ")[0]}` : ""}! ✈️</h2>
+          <h2 className="mt-2 pr-0 font-display text-[34px] font-extrabold leading-tight sm:pr-44 print:pr-44">Boa viagem{owner?.name ? `, ${owner.name.split(" ")[0]}` : ""}!</h2>
           <p className="mt-3 max-w-[460px] text-[15px] leading-relaxed text-white/90">Foi um prazer montar este roteiro com você. Aproveite cada parada, e se algo mudar no caminho, é só me chamar no app que eu reorganizo o dia na hora.</p>
           <p className="mt-2 text-sm text-white/80">— Pino, do Rotta 365</p>
           {/* eslint-disable-next-line @next/next/no-img-element */}
