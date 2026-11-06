@@ -6,6 +6,7 @@ import { Wand2, Undo2, Redo2, AlertTriangle, CloudRain, Sun, Lightbulb, RefreshC
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { cascade, optimizeDay, type Conflict } from "@/lib/domain/schedule";
 import { suggestMode } from "@/lib/domain/geo";
+import { TripPlaces } from "@/lib/domain/dedupe";
 import { fmtDuration, weekdayShort, fmtDateShort } from "@/lib/domain/time";
 import { fmtBRL } from "@/lib/domain/settle";
 import { weatherLabel } from "@/lib/context";
@@ -149,6 +150,11 @@ export function Planner(p: Props) {
   };
 
   const addItem = async (draft: Partial<Item>, toDay: string | null) => {
+    const dup = draft.title ? items.find((i) => i.day_id && TripPlaces.from([i], p.destinations.map((d) => d.city)).has({ place_id: draft.place_id ?? null, title: draft.title!, kind: draft.kind ?? "lugar" })) : undefined;
+    if (dup) {
+      const dn = p.days.findIndex((d) => d.id === dup.day_id) + 1;
+      if (!confirm(`"${dup.title}" já está no roteiro (dia ${dn}). Adicionar de novo mesmo assim?`)) return;
+    }
     const sameDay = items.filter((i) => i.day_id === toDay).sort((a, b) => a.position - b.position);
     const pos = sameDay.length;
     const prev = sameDay.at(-1);

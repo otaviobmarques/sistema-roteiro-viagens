@@ -10,6 +10,7 @@ import { addDays, daysBetween, fromMin } from "../domain/time";
 import { fitScore, forYouScore, TRAVEL_PROFILES, INTEREST_CATEGORIES, type TravelProfile } from "../domain/score";
 import { transferLegs } from "../domain/multidest";
 import { normalizeKind, normalizeProfile } from "./normalize";
+import { TripPlaces } from "../domain/dedupe";
 
 
 const PROFILES = ["mochilao", "classica", "experiencia"] as const;
@@ -209,9 +210,7 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
   // Converte e verifica (salvaguarda 9.3: código que não bate com candidato é descartado)
   const legs = transferLegs(inputs.map((d) => ({ id: d.id, city: d.city, lat: d.lat, lng: d.lng })));
   const daysOut: { date: string; destId: string; title: string; items: SavedItem[]; rain: number | null; holiday: boolean }[] = [];
-  const usedPlaces = new Set<string>(); // o mesmo lugar não entra duas vezes na viagem
-  const usedMust = new Set<string>();
-  const key = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\(.*\)/, "").trim();
+  const tripPlaces = new TripPlaces(inputs.map((d) => d.city)); // o mesmo lugar não entra duas vezes na viagem
   const mustHaves: DestinationPlan["must_haves"] = [];
   const tips: string[] = [];
   for (let i = 0; i < inputs.length; i++) {
@@ -239,11 +238,7 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
         const cand = it.candidate ? codes.get(it.candidate) ?? null : null;
         if (it.candidate && !cand) continue; // inventado → descarta
         if (!cand && !it.must_have && !["nota", "livre"].includes(it.kind)) continue;
-        if (cand && usedPlaces.has(cand.id)) continue;
-        const mk = key(cand?.name ?? it.title);
-        if (it.must_have && [...usedMust].some((u) => u.includes(mk) || mk.includes(u))) continue;
-        if (cand) usedPlaces.add(cand.id);
-        if (it.must_have) usedMust.add(mk);
+        if (!tripPlaces.tryAdd({ place_id: cand?.id ?? null, title: cand?.name ?? it.title, kind: it.kind })) continue;
         const fit = cand ? fitScore({ interest: cand.interest, interests: b.interests, itemPriceLevel: cand.price_level, profile: b.profile, contextBonus: 0.7 }) : null;
         const quality = cand ? Math.min(10, 4 + cand.notability * 0.6) : null;
         const opts = it.options
@@ -404,12 +399,13 @@ export async function redoDay(supabase: SupabaseClient, tripId: string, dayId: s
     supabase.from("trip_preferences").select("*").eq("trip_id", tripId).maybeSingle(),
     supabase.from("trip_destinations").select("*").eq("id", day.destination_id).maybeSingle(),
     supabase.from("itinerary_items").select("*").eq("day_id", dayId).order("position"),
-    supabase.from("itinerary_items").select("place_id").eq("trip_id", tripId).neq("day_id", dayId),
+    supabase.from("itinerary_items").select("place_id, title, kind").eq("trip_id", tripId).neq("day_id", dayId),
   ]);
   if (!dest?.lat) throw new Error("Destino sem localização");
   const profile = ((prefs?.travel_profile as TravelProfile) ?? "classica");
   const interests = (prefs?.interests as Record<string, number>) ?? {};
   const used = new Set((others ?? []).map((o) => o.place_id).filter(Boolean));
+  const tripPlaces = TripPlaces.from((others ?? []) as { place_id: string | null; title: string; kind: string }[], [dest.city]);
   const { candidates } = await getCandidates(supabase, dest.city, dest.lat, dest.lng, { country: dest.country });
   const sl = shortlist(candidates.filter((c) => !used.has(c.id)), interests, mode === "barato" ? "mochilao" : profile, 2);
   const codes = new Map<string, Candidate>();
@@ -426,7 +422,8 @@ ${candidateLines(sl, codes, 0)}`;
   const rows = data.day.items
     .map((it) => ({ it, cand: it.candidate ? codes.get(it.candidate) ?? null : null }))
     .filter(({ it, cand }) => cand || ["nota", "livre"].includes(it.kind))
-    .filter(({ cand }) => !cand || !keep.some((k) => k.place_id === cand.id));
+    .filter(({ cand }) => !cand || !keep.some((k) => k.place_id === cand.id))
+    .filter(({ it, cand }) => tripPlaces.tryAdd({ place_id: cand?.id ?? null, title: cand?.name ?? it.title, kind: it.kind }));
   // apaga os itens não travados e grava os novos depois dos mantidos
   const removable = (current ?? []).filter((i) => !keep.includes(i)).map((i) => i.id);
   if (removable.length) await supabase.from("itinerary_items").delete().in("id", removable);

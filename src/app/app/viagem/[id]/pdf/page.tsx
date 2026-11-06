@@ -12,7 +12,12 @@ import { memberName } from "@/lib/types";
 import { PrintButton } from "@/components/export/print-button";
 import { fmtLocal, RES_KINDS } from "@/components/reservations/format";
 
-export const metadata = { title: "Roteiro em PDF" };
+// O título vira o nome do arquivo ao "Salvar como PDF"
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const { trip } = await loadTrip(id);
+  return { title: { absolute: `Rotta 365 – ${trip.title} – Roteiro` } };
+}
 
 const KIND_LABEL: Record<string, string> = { lugar: "Visita", atividade: "Atividade", refeicao: "Refeição", trajeto: "Trajeto", hospedagem: "Hospedagem", nota: "Nota", livre: "Tempo livre" };
 const BAR = ["#205BFF", "#2F6BFF", "#0B7F84", "#0A1F4C", "#11C2C8", "#3A4D7A"];
