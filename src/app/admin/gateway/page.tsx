@@ -1,7 +1,8 @@
 import { requireUser } from "@/lib/supabase/server";
 import { PageTitle, Pill, Notice } from "@/components/ui";
 import { GatewayEditor, SettingsEditor } from "@/components/admin/gateway-editor";
-import { ModeSwitch, CredentialsEditor, ProviderSwitch, readiness } from "@/components/admin/payment-admin";
+import { ModeSwitch, CredentialsEditor, ProviderSwitch } from "@/components/admin/payment-admin";
+import { readiness } from "@/lib/payments/fields";
 
 const PROVIDER: Record<string, string> = { asaas: "Asaas", mercado_pago: "Mercado Pago", stripe: "Stripe" };
 const ABOUT: Record<string, string> = {
