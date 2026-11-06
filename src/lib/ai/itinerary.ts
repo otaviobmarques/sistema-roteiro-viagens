@@ -12,6 +12,7 @@ import { transferLegs } from "../domain/multidest";
 import { normalizeKind, normalizeProfile } from "./normalize";
 import { TripPlaces } from "../domain/dedupe";
 import { photosFor, transitTips, type LegIn } from "../enrich";
+import { countryGuides } from "./country-guide";
 import { haversineKm } from "../domain/geo";
 
 
@@ -215,6 +216,8 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
 
   // Candidatos (base própria), clima e feriados em paralelo
   const year = Number(String(trip.start_date).slice(0, 4));
+  // o guia "antes de ir" de cada país é preparado em paralelo (fica no cache para o relatório)
+  const guidesWarm = countryGuides(supabase, inputs.map((d) => d.country)).catch(() => []);
   const [candSets, weathers, hols] = await Promise.all([
     Promise.all(inputs.map((d) => getCandidates(supabase, d.city, d.lat, d.lng, { country: d.country }))),
     Promise.all(inputs.map((d) => weather(d.lat, d.lng, d.start, addDays(d.start, d.days - 1)))),
@@ -324,6 +327,7 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
     });
   }
   const viability = tripViability(dayScores);
+  await guidesWarm;
 
   // Enriquecimento: fotos (Wikimedia, grátis) e "como chegar" em cada trecho, já na ordem final
   const legIns: LegIn[] = [];

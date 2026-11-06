@@ -1,0 +1,81 @@
+// Guia "Antes de ir" por país para o viajante brasileiro: seguro viagem, saúde, celular, dinheiro, tomada e documentos.
+// Gerado uma vez por país (cache em country_guides, renovado a cada 90 dias) e reaproveitado em todos os roteiros.
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
+import { askJSON } from "./claude";
+import { supabaseAnon } from "../supabase/server";
+
+const GuideSchema = z.object({
+  country_name: z.string().describe("nome do país em português"),
+  insurance: z.object({
+    mandatory: z.boolean().describe("seguro viagem é exigido na entrada para brasileiros"),
+    requirement: z.string().describe("regra de entrada sobre seguro (ex.: cobertura mínima); se não for exigido, diga isso"),
+    recommended: z.string().describe("cobertura médica recomendada para esse país e por quê, em até 25 palavras"),
+    tips: z.array(z.string()).describe("até 3 dicas curtas: o que cobrir, cartão de crédito com seguro, esportes"),
+  }),
+  health: z.object({
+    summary: z.string().describe("como funciona o atendimento médico para turistas e custo, em até 30 palavras"),
+    agreement: z.string().nullable().describe("acordo de saúde Brasil–país (ex.: certificado emitido antes da viagem); null se não houver"),
+    vaccines: z.string().describe("vacinas exigidas ou recomendadas (ex.: febre amarela); 'nenhuma exigida' se for o caso"),
+    medicines: z.string().describe("cuidado com remédios na bagagem, em até 20 palavras"),
+  }),
+  connectivity: z.object({
+    roaming: z.string().describe("roaming das operadoras brasileiras (Vivo, Claro, TIM) nesse país, em até 22 palavras"),
+    esim: z.string().describe("eSIM de viagem: vale a pena, cobertura, preço típico, em até 22 palavras"),
+    local_sim: z.string().describe("chip local: operadoras comuns, onde comprar, o que pedem, em até 22 palavras"),
+    tip: z.string().describe("dica prática de internet/ligações, em até 18 palavras"),
+  }),
+  money: z.object({
+    currency: z.string().describe("moeda e câmbio aproximado em reais"),
+    cards: z.string().describe("aceitação de cartão, saque, IOF e cartões globais, em até 25 palavras"),
+    tipping: z.string().describe("costume de gorjeta, em até 18 palavras"),
+  }),
+  power: z.object({ plugs: z.string().describe("tipos de tomada (letras) e se precisa de adaptador vindo do Brasil"), voltage: z.string() }),
+  documents: z.object({
+    visa: z.string().describe("visto ou autorização eletrônica para brasileiros (ex.: ETIAS, ESTA), em até 28 palavras"),
+    passport: z.string().describe("validade mínima do passaporte e outros documentos"),
+    other: z.string().nullable().describe("outra exigência importante (comprovantes, menores viajando); null se não houver"),
+  }),
+  emergency: z.object({ number: z.string().describe("número geral de emergência"), police: z.string().nullable(), ambulance: z.string().nullable() }),
+  phrases: z.array(z.object({ pt: z.string(), local: z.string() })).describe("5 frases úteis no idioma local; [] se o idioma for português"),
+});
+export type CountryGuide = z.infer<typeof GuideSchema>;
+
+export const normCountry = (c: string) => c.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+const isBrazil = (c: string) => /^(brasil|brazil|br)$/.test(normCountry(c));
+const MAX_AGE_DAYS = 90;
+
+async function generate(country: string): Promise<CountryGuide> {
+  const r = await askJSON({
+    schema: GuideSchema,
+    effort: "low",
+    maxTokens: 3500,
+    system: "Você é o Pino, guia de viagem do Rotta 365. Escreve para turistas brasileiros, em português do Brasil, de forma curta, prática e correta. Quando uma regra puder ter mudado recentemente, diga para confirmar no site oficial; nunca invente números ou exigências.",
+    prompt: `Monte o guia "antes de ir" para um turista brasileiro que vai viajar para: ${country}.`,
+  });
+  return r.data;
+}
+
+/** Guias dos países da viagem (fora o Brasil), do cache ou gerados na hora em paralelo. Nunca lança erro. */
+export async function countryGuides(supabase: SupabaseClient, countries: (string | null | undefined)[], opts: { generateMissing?: boolean } = {}): Promise<{ country: string; guide: CountryGuide }[]> {
+  const list = [...new Map(countries.filter((c): c is string => !!c && !isBrazil(c)).map((c) => [normCountry(c), c])).entries()];
+  if (!list.length) return [];
+  const { data: rows } = await supabase.from("country_guides").select("country, display_name, data, updated_at").in("country", list.map(([k]) => k));
+  const byKey = new Map((rows ?? []).map((r) => [r.country, r]));
+  const fresh = (d: string) => Date.now() - new Date(d).getTime() < MAX_AGE_DAYS * 86400000;
+  const out = await Promise.all(list.map(async ([key, name]) => {
+    const row = byKey.get(key);
+    if (row && fresh(row.updated_at)) return { country: row.display_name, guide: row.data as CountryGuide };
+    if (opts.generateMissing === false) return row ? { country: row.display_name, guide: row.data as CountryGuide } : null;
+    try {
+      const g = await generate(name);
+      await supabaseAnon().rpc("server_upsert_country_guide", { p_secret: process.env.INTERNAL_SECRET, p_country: key, p_display: g.country_name || name, p_data: g });
+      return { country: g.country_name || name, guide: g };
+    } catch {
+      return row ? { country: row.display_name, guide: row.data as CountryGuide } : null;
+    }
+  }));
+  return out.filter(Boolean) as { country: string; guide: CountryGuide }[];
+}
+
+export type Affiliates = { seguro?: { url?: string; label?: string }; esim?: { url?: string; label?: string } };

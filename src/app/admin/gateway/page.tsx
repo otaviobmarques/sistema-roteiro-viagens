@@ -3,6 +3,7 @@ import { PageTitle, Pill, Notice } from "@/components/ui";
 import { GatewayEditor, SettingsEditor } from "@/components/admin/gateway-editor";
 import { ModeSwitch, CredentialsEditor, ProviderSwitch } from "@/components/admin/payment-admin";
 import { readiness } from "@/lib/payments/fields";
+import { AffiliatesEditor } from "@/components/admin/affiliates-editor";
 
 const PROVIDER: Record<string, string> = { asaas: "Asaas", mercado_pago: "Mercado Pago", stripe: "Stripe" };
 const ABOUT: Record<string, string> = {
@@ -67,8 +68,14 @@ export default async function AdminGateway() {
       </section>
 
       <section className="card p-5">
+        <h2 className="mb-1 text-lg font-bold">Parceiros (afiliados)</h2>
+        <p className="mb-3 text-sm text-gray">Seus links de afiliado de seguro viagem e eSIM. Eles aparecem no guia “Antes de ir” dos roteiros internacionais.</p>
+        <AffiliatesEditor initial={((settings ?? []).find((s) => s.key === "affiliates")?.value ?? {}) as never} />
+      </section>
+
+      <section className="card p-5">
         <h2 className="mb-3 text-lg font-bold">Configurações do app</h2>
-        <SettingsEditor settings={(settings ?? []).filter((s) => s.key !== "payment_env").map((s) => ({ key: s.key, value: s.value }))} />
+        <SettingsEditor settings={(settings ?? []).filter((s) => s.key !== "payment_env" && s.key !== "affiliates").map((s) => ({ key: s.key, value: s.value }))} />
       </section>
 
       <section className="card p-5">

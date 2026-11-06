@@ -10,6 +10,7 @@ import { badge } from "@/lib/domain/score";
 import type { Day, Item, Reservation } from "@/lib/types";
 import { memberName } from "@/lib/types";
 import { PrintButton, DownloadPdfButton } from "@/components/export/print-button";
+import { countryGuides, type CountryGuide, type Affiliates } from "@/lib/ai/country-guide";
 import { fmtLocal, RES_KINDS } from "@/components/reservations/format";
 
 // O título vira o nome do arquivo ao "Salvar como PDF"
@@ -50,6 +51,21 @@ const SPLIT_LABEL: [keyof CostSplit, string][] = [["comida", "Alimentação"], [
 // seta em SVG: as fontes do servidor de PDF não têm o caractere →
 const Arrow = () => <svg width="12" height="10" viewBox="0 0 12 10" className="inline-block align-middle" aria-hidden><path d="M1 5h9M6.5 1.5 10 5 6.5 8.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 
+function GuideCard({ title, badge, strong, children }: { title: string; badge?: string; strong?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="avoid rounded-xl border border-line p-3.5 text-[12px] leading-snug text-navy">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-extrabold">{title}</h3>
+        {badge && <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${strong ? "bg-warn-50 text-warn" : "bg-blue-50 text-blue"}`}>{badge}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+const PartnerLink = ({ url, label }: { url: string; label: string }) => (
+  <a href={url} className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-blue px-2.5 py-1.5 text-[11px] font-semibold text-white">{label} <span className="rounded bg-white/20 px-1 text-[9px] uppercase tracking-wide">parceiro</span></a>
+);
+
 const isBrazil = (c?: string | null) => !c || /^(brasil|brazil|br)$/i.test(c.trim());
 const isNorthAmerica = (c?: string | null) => !!c && /estados unidos|eua|usa|united states|canad/i.test(c);
 
@@ -73,6 +89,15 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
   const site = process.env.NEXT_PUBLIC_SITE_URL || "https://rotta365.vercel.app";
   const { data: owner } = await supabase.from("profiles").select("name, referral_code").eq("id", trip.owner_id).maybeSingle();
   const referralUrl = owner?.referral_code ? `${site}/r/${owner.referral_code}` : site;
+  // guia "antes de ir" (cache; se faltar, gera na hora, com limite de tempo)
+  const [guides, { data: affRow }] = await Promise.all([
+    Promise.race([
+      countryGuides(supabase, destinations.map((d) => d.country)),
+      new Promise<{ country: string; guide: CountryGuide }[]>((r) => setTimeout(() => r([]), 25000)),
+    ]),
+    supabase.from("app_settings").select("value").eq("key", "affiliates").maybeSingle(),
+  ]);
+  const aff = (affRow?.value ?? {}) as Affiliates;
   const referralQr = await QRCode.toDataURL(referralUrl, { margin: 0, width: 220, color: { dark: "#0A1F4C", light: "#FFFFFF" } });
   const qr = await QRCode.toDataURL(`${site}/app/viagem/${id}/hoje`, { margin: 0, width: 220, color: { dark: "#0A1F4C", light: "#FFFFFF" } });
   const computed = days.map((d) => cascade(items.filter((i) => i.day_id === d.id), { date: d.date, dayStart: d.day_start || "09:00", pace: trip.pace }));
@@ -252,6 +277,59 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
         )}
       </section>
 
+      {/* ---------- ANTES DE IR (por país) ---------- */}
+      {guides.map(({ country, guide: g }) => (
+        <section key={country} className="sheet page-break mt-6 rounded-3xl border border-line bg-white p-9 shadow-[var(--shadow-card)]">
+          <div className="label text-blue">Antes de ir</div>
+          <h2 className="font-display text-2xl font-extrabold">{country}: o que preparar</h2>
+          <p className="mt-1 text-xs text-gray">Regras de entrada, acordos e preços mudam. Confirme nos sites oficiais (consulado e gov.br/mre) antes de viajar.</p>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 print:grid-cols-2">
+            <GuideCard title="Seguro viagem" badge={g.insurance.mandatory ? "Obrigatório" : "Recomendado"} strong={g.insurance.mandatory}>
+              <p><b>{g.insurance.requirement}</b></p>
+              <p className="mt-1">{g.insurance.recommended}</p>
+              {g.insurance.tips.slice(0, 3).map((t) => <p key={t} className="mt-1">• {t}</p>)}
+              {aff.seguro?.url && <PartnerLink url={aff.seguro.url} label={aff.seguro.label || "Cotar seguro viagem"} />}
+            </GuideCard>
+            <GuideCard title="Saúde">
+              <p>{g.health.summary}</p>
+              {g.health.agreement && <p className="mt-1"><b>Acordo Brasil–{country}:</b> {g.health.agreement}</p>}
+              <p className="mt-1"><b>Vacinas:</b> {g.health.vaccines}</p>
+              <p className="mt-1"><b>Remédios:</b> {g.health.medicines}</p>
+            </GuideCard>
+            <GuideCard title="Celular e internet">
+              <p><b>Roaming:</b> {g.connectivity.roaming}</p>
+              <p className="mt-1"><b>eSIM:</b> {g.connectivity.esim}</p>
+              <p className="mt-1"><b>Chip local:</b> {g.connectivity.local_sim}</p>
+              <p className="mt-1">• {g.connectivity.tip}</p>
+              {aff.esim?.url && <PartnerLink url={aff.esim.url} label={aff.esim.label || "Comprar eSIM de viagem"} />}
+            </GuideCard>
+            <GuideCard title="Documentos e visto">
+              <p>{g.documents.visa}</p>
+              <p className="mt-1"><b>Passaporte:</b> {g.documents.passport}</p>
+              {g.documents.other && <p className="mt-1">{g.documents.other}</p>}
+            </GuideCard>
+            <GuideCard title="Dinheiro e gorjeta">
+              <p><b>Moeda:</b> {g.money.currency}</p>
+              <p className="mt-1">{g.money.cards}</p>
+              <p className="mt-1"><b>Gorjeta:</b> {g.money.tipping}</p>
+            </GuideCard>
+            <GuideCard title="Tomada e emergência">
+              <p><b>Tomada:</b> {g.power.plugs} · {g.power.voltage}</p>
+              <p className="mt-1"><b>Emergência:</b> {g.emergency.number}{g.emergency.police ? ` · polícia ${g.emergency.police}` : ""}{g.emergency.ambulance ? ` · ambulância ${g.emergency.ambulance}` : ""}</p>
+            </GuideCard>
+          </div>
+          {g.phrases.length > 0 && (
+            <div className="avoid mt-4">
+              <div className="label mb-2">Frases úteis</div>
+              <div className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2 print:grid-cols-2">
+                {g.phrases.slice(0, 6).map((f) => <div key={f.pt} className="flex justify-between gap-3 border-b border-line py-1"><span className="text-gray">{f.pt}</span><b>{f.local}</b></div>)}
+              </div>
+            </div>
+          )}
+          {(aff.seguro?.url || aff.esim?.url) && <p className="mt-4 text-[10px] text-gray">Links marcados como “parceiro” podem gerar comissão para o Rotta 365, sem custo extra para você.</p>}
+        </section>
+      ))}
+
       {/* ---------- DIAS ---------- */}
       {days.map((d, di) => {
         const res = computed[di];
@@ -391,9 +469,10 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
           <div>
             <h2 className="font-display text-xl font-extrabold">Emergência</h2>
             <ul className="mt-2 space-y-1 text-sm">
+              {guides.map(({ country, guide: g }) => <li key={country}><b className="mono">{g.emergency.number}</b> <span className="text-gray">· {country}{g.emergency.police ? ` (polícia ${g.emergency.police})` : ""}{g.emergency.ambulance ? ` (ambulância ${g.emergency.ambulance})` : ""}</span></li>)}
               {destinations.some((d) => isBrazil(d.country)) && <li><b className="mono">190 · 192 · 193</b> <span className="text-gray">· Brasil (polícia, SAMU, bombeiros)</span></li>}
-              {abroad.some((d) => isNorthAmerica(d.country)) && <li><b className="mono">911</b> <span className="text-gray">· Estados Unidos e Canadá</span></li>}
-              {abroad.some((d) => !isNorthAmerica(d.country)) && <li><b className="mono">112</b> <span className="text-gray">· emergência na Europa e em muitos outros países</span></li>}
+              {!guides.length && abroad.some((d) => isNorthAmerica(d.country)) && <li><b className="mono">911</b> <span className="text-gray">· Estados Unidos e Canadá</span></li>}
+              {!guides.length && abroad.some((d) => !isNorthAmerica(d.country)) && <li><b className="mono">112</b> <span className="text-gray">· emergência na Europa e em muitos outros países</span></li>}
               {abroad.length > 0 && <li className="text-gray">Consulados do Brasil no exterior: gov.br/mre</li>}
             </ul>
           </div>
