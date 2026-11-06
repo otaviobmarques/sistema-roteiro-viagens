@@ -45,7 +45,7 @@ begin
   if not is_admin() then raise exception 'apenas administradores'; end if;
   if p_env not in ('sandbox','producao') then raise exception 'ambiente inválido'; end if;
   update app_settings set value = to_jsonb(p_env) where key = 'payment_env';
-  update payment_gateways set environment = p_env, updated_by = auth.uid(), updated_at = now();
+  update payment_gateways set environment = p_env, updated_by = auth.uid(), updated_at = now() where environment is distinct from p_env;
   insert into audit_log (actor_id, action, target, details) values (auth.uid(), 'modo_pagamento', p_env, null);
 end $$;
 
