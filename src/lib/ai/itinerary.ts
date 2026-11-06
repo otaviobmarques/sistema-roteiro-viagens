@@ -240,9 +240,10 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
         if (it.candidate && !cand) continue; // inventado → descarta
         if (!cand && !it.must_have && !["nota", "livre"].includes(it.kind)) continue;
         if (cand && usedPlaces.has(cand.id)) continue;
-        if (it.must_have && usedMust.has(key(cand?.name ?? it.title))) continue;
+        const mk = key(cand?.name ?? it.title);
+        if (it.must_have && [...usedMust].some((u) => u.includes(mk) || mk.includes(u))) continue;
         if (cand) usedPlaces.add(cand.id);
-        if (it.must_have) usedMust.add(key(cand?.name ?? it.title));
+        if (it.must_have) usedMust.add(mk);
         const fit = cand ? fitScore({ interest: cand.interest, interests: b.interests, itemPriceLevel: cand.price_level, profile: b.profile, contextBonus: 0.7 }) : null;
         const quality = cand ? Math.min(10, 4 + cand.notability * 0.6) : null;
         const opts = it.options

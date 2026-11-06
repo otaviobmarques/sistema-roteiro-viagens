@@ -238,7 +238,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
                         {it.notes && <p className="mt-1 text-[12px] text-navy">📝 {it.notes}</p>}
                         <div className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-gray">
                           {k > 0 && it.travel_before > 0 && <span>Chegada: {modeLabel(it.transport_mode)}, {fmtDuration(it.travel_before)}</span>}
-                          {it.opening_hours && <span>Horário: {it.opening_hours}</span>}
+                          {it.opening_hours && <span>Horário: {it.opening_hours.length > 48 ? `${it.opening_hours.slice(0, 46)}…` : it.opening_hours}</span>}
                           {it.lat != null && <a className="font-semibold text-blue" href={`https://www.google.com/maps/search/?api=1&query=${it.lat},${it.lng}`}>Abrir no mapa ↗</a>}
                         </div>
                       </div>
