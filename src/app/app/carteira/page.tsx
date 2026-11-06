@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { PageTitle, PinoAvatar, Pill, Notice, EmptyState } from "@/components/ui";
 import { fmtBRL } from "@/lib/domain/settle";
 import { Checkout } from "@/components/wallet/checkout";
+import { paymentConfig, pixProviders, cardProvider } from "@/lib/payments/config";
 import { Check } from "lucide-react";
 
 export const metadata = { title: "Carteira" };
@@ -25,6 +26,7 @@ function fmtDateTime(iso: string) {
 export default async function WalletPage({ searchParams }: { searchParams: Promise<{ trip?: string }> }) {
   const { trip: tripId } = await searchParams;
   const { supabase, user } = await requireUser();
+  const pay = await paymentConfig().catch(() => null);
   const [{ data: wallet }, { data: products }, { data: txs }, { data: orders }, tripRes] = await Promise.all([
     supabase.from("credit_wallets").select("balance, updated_at").eq("user_id", user.id).maybeSingle(),
     supabase.from("products").select("*").eq("active", true).order("price_cents"),
@@ -78,7 +80,7 @@ export default async function WalletPage({ searchParams }: { searchParams: Promi
         <section className="card p-5" aria-labelledby="comprar">
           <h2 id="comprar" className="text-lg font-bold">Comprar roteiros</h2>
           <p className="mb-4 text-sm text-gray">O resto do app é grátis: planejar à mão, convidar o grupo, dividir gastos e acertar via Pix.</p>
-          <Checkout products={(products ?? []).map((p) => ({ id: p.id, name: p.name, credits: p.credits, price_cents: p.price_cents }))} />
+          <Checkout testMode={pay?.env !== "producao"} pixAvailable={pay ? pixProviders(pay).length > 0 : false} cardAvailable={pay ? !!cardProvider(pay) : false} products={(products ?? []).map((p) => ({ id: p.id, name: p.name, credits: p.credits, price_cents: p.price_cents }))} />
         </section>
       </div>
 

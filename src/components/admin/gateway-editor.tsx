@@ -21,13 +21,12 @@ type Cfg = { pix?: boolean; cartao?: boolean; boleto?: boolean; pix_expiracao_mi
 export function GatewayEditor({ id, active, environment, config, editable }: { id: string; active: boolean; environment: string; config: Cfg; editable: boolean }) {
   const router = useRouter();
   const [cfg, setCfg] = useState<Cfg>(config);
-  const [on, setOn] = useState(active);
-  const [envState, setEnv] = useState(environment);
+  void active; void environment;
   const [msg, setMsg] = useState<string | null>(null);
 
   const save = async () => {
     setMsg(null);
-    const { error } = await supabaseBrowser().from("payment_gateways").update({ config: cfg, active: on, environment: envState, updated_at: new Date().toISOString() }).eq("id", id);
+    const { error } = await supabaseBrowser().from("payment_gateways").update({ config: cfg, updated_at: new Date().toISOString() }).eq("id", id);
     setMsg(error ? error.message : "Salvo.");
     router.refresh();
   };
@@ -35,12 +34,6 @@ export function GatewayEditor({ id, active, environment, config, editable }: { i
   if (!editable) return <p className="text-sm text-gray">Integração prevista para a V1.</p>;
   return (
     <div className="space-y-2 text-sm">
-      <label className="flex items-center gap-2"><input type="checkbox" checked={on} onChange={(e) => setOn(e.target.checked)} /> Ativo</label>
-      <label className="block">Ambiente
-        <select className="input mt-1" value={envState} onChange={(e) => setEnv(e.target.value)}>
-          <option value="sandbox">Sandbox</option><option value="producao">Produção</option>
-        </select>
-      </label>
       <fieldset className="flex flex-wrap gap-3">
         <legend className="label mb-1">Meios</legend>
         {(["pix", "cartao", "boleto"] as const).map((k) => (
@@ -54,7 +47,7 @@ export function GatewayEditor({ id, active, environment, config, editable }: { i
       <label className="flex items-center gap-2"><input type="checkbox" checked={!!cfg.tres_ds} onChange={(e) => setCfg({ ...cfg, tres_ds: e.target.checked })} /> 3D Secure no cartão</label>
       <button className="btn-primary btn-sm" onClick={save}>Salvar</button>
       {msg && <span className="ml-2 text-xs text-gray">{msg}</span>}
-      <p className="text-xs text-gray">Neste MVP o checkout usa Pix. Cartão e boleto ficam registrados para a próxima etapa.</p>
+      <p className="text-xs text-gray">Pix: Asaas e Mercado Pago. Cartão: Stripe. Boleto fica para a próxima etapa.</p>
     </div>
   );
 }

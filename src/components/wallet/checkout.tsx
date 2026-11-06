@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import clsx from "clsx";
-import { Copy, Check, Loader2, QrCode } from "lucide-react";
+import { Copy, Check, Loader2, QrCode, CreditCard, FlaskConical } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { fmtBRL } from "@/lib/domain/settle";
 import { Notice, PinoAvatar } from "@/components/ui";
@@ -10,10 +10,11 @@ import { Notice, PinoAvatar } from "@/components/ui";
 type Product = { id: string; name: string; credits: number; price_cents: number };
 type Charge = { orderId: string; payload: string; image: string; expiresAt?: string; invoiceUrl?: string };
 
-export function Checkout({ products }: { products: Product[] }) {
+export function Checkout({ products, testMode = false, pixAvailable = true, cardAvailable = false }: { products: Product[]; testMode?: boolean; pixAvailable?: boolean; cardAvailable?: boolean }) {
   const router = useRouter();
   const [selected, setSelected] = useState(products.find((p) => p.id === "combo_5")?.id ?? products[0]?.id);
   const [cpf, setCpf] = useState("");
+  const [method, setMethod] = useState<"pix" | "cartao">(pixAvailable || !cardAvailable ? "pix" : "cartao");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [charge, setCharge] = useState<Charge | null>(null);
@@ -41,9 +42,10 @@ export function Checkout({ products }: { products: Product[] }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product: selected, cpf }) });
+      const res = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product: selected, cpf, method }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Não foi possível criar a cobrança.");
+      if (data.redirect) { window.location.href = data.redirect; return; } // cartão: checkout seguro da Stripe
       setCharge(data);
       setStatus("pendente");
     } catch (e) {
@@ -95,6 +97,11 @@ export function Checkout({ products }: { products: Product[] }) {
 
   return (
     <div className="space-y-4">
+      {testMode && (
+        <div className="flex items-start gap-2 rounded-xl border border-warn/40 bg-warn-50 px-3 py-2 text-sm text-[#7a5212]">
+          <FlaskConical size={16} className="mt-0.5 shrink-0" /> <span><b>Modo de teste:</b> as cobranças usam o ambiente de testes do gateway e nenhum dinheiro real é cobrado.</span>
+        </div>
+      )}
       <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Produtos">
         {products.map((p) => {
           const per = Math.round(p.price_cents / p.credits);
@@ -115,13 +122,22 @@ export function Checkout({ products }: { products: Product[] }) {
           );
         })}
       </div>
-      <div>
+      {pixAvailable && cardAvailable && (
+        <div role="radiogroup" aria-label="Forma de pagamento" className="grid max-w-sm grid-cols-2 rounded-xl bg-ice p-1 text-sm font-semibold">
+          {(["pix", "cartao"] as const).map((m) => (
+            <button key={m} role="radio" aria-checked={method === m} onClick={() => setMethod(m)} className={clsx("flex min-h-10 items-center justify-center gap-1.5 rounded-lg", method === m ? "bg-white shadow-sm" : "text-gray")}>
+              {m === "pix" ? <><QrCode size={15} /> Pix</> : <><CreditCard size={15} /> Cartão</>}
+            </button>
+          ))}
+        </div>
+      )}
+      {method === "pix" && <div>
         <label htmlFor="cpf" className="mb-1 block text-sm font-semibold">CPF ou CNPJ <span className="font-normal text-gray">(exigido pelo banco para emitir o Pix)</span></label>
         <input id="cpf" inputMode="numeric" className="input mono" placeholder="000.000.000-00" value={cpf} onChange={(e) => setCpf(e.target.value)} />
-      </div>
+      </div>}
       {error && <Notice tone="danger">{error}</Notice>}
       <button onClick={buy} disabled={loading || !selected} className="btn-primary w-full sm:w-auto">
-        {loading ? <Loader2 size={16} className="animate-spin" /> : <QrCode size={16} />} Pagar com Pix
+        {loading ? <Loader2 size={16} className="animate-spin" /> : method === "pix" ? <QrCode size={16} /> : <CreditCard size={16} />} {method === "pix" ? "Pagar com Pix" : "Pagar com cartão"}
       </button>
       <p className="text-xs text-gray">O roteiro só é gerado depois da confirmação do pagamento. Se a geração falhar, nenhum crédito é cobrado.</p>
     </div>
