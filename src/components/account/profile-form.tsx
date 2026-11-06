@@ -7,6 +7,7 @@ import { supabaseBrowser } from "@/lib/supabase/client";
 import { INTEREST_CATEGORIES, TRAVEL_PROFILES, WEIGHT_LABELS } from "@/lib/domain/score";
 import { pixKeyKind } from "@/lib/domain/pix";
 import { Notice } from "@/components/ui";
+import { ChangePassword } from "./change-password";
 import type { Profile } from "@/lib/types";
 
 type Restrictions = { criancas?: boolean; mobilidade?: boolean; alimentacao?: string[]; outros?: string };
@@ -164,6 +165,7 @@ export function ProfileForm({ userId, email, profile, interests: initialInterest
         </section>
         <section className="card space-y-3 p-5">
           <h2 className="text-lg font-bold">Segurança</h2>
+          <ChangePassword />
           <p className="text-sm text-gray">Verificação em duas etapas, passkeys e lista de sessões ativas chegam na V1.</p>
           <button type="button" onClick={signOut} className="btn-secondary w-full"><LogOut size={16} /> Sair da conta</button>
         </section>
