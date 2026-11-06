@@ -33,7 +33,7 @@ export function DownloadPdfButton({ tripId, title }: { tripId: string; title: st
   };
   return (
     <span className="inline-flex flex-col items-end gap-1">
-      <button className="btn-primary btn-sm" onClick={download} disabled={busy}>
+      <button className="btn-primary btn-sm whitespace-nowrap" onClick={download} disabled={busy}>
         {busy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} {busy ? "Gerando PDF…" : "Baixar PDF"}
       </button>
       {err && <span className="text-xs text-danger" role="alert">{err}</span>}

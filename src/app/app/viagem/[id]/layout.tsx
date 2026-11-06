@@ -26,7 +26,7 @@ export default async function TripLayout({ children, params }: { children: React
             {trip.viability_score != null && <> · viabilidade <b className="text-navy">{trip.viability_score}</b></>}
           </div>
         </div>
-        <div className="flex w-full items-start gap-2 sm:w-auto">
+        <div className="flex w-full flex-wrap items-start gap-2 sm:w-auto">
         <div className="mr-auto flex -space-x-2 sm:mr-0" aria-label="Viajantes">
           {members.slice(0, 5).map((m) => <Avatar key={m.id} name={memberName(m)} url={m.profiles?.avatar_url} size={30} />)}
         </div>
