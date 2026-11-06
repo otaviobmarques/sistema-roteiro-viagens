@@ -6,6 +6,7 @@ import clsx from "clsx";
 const LINKS = [
   { href: "/admin", label: "Métricas", exact: true },
   { href: "/admin/usuarios", label: "Usuários" },
+  { href: "/admin/roteiros", label: "Roteiros" },
   { href: "/admin/geracoes", label: "IA, pedidos e auditoria" },
   { href: "/admin/gateway", label: "Gateway e configurações" },
 ];
