@@ -32,8 +32,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: t.title,
     description: desc,
-    openGraph: { title: `${t.title} · Rotta 365`, description: desc, type: "article", images: ["/brand/logo.png"] },
-    twitter: { card: "summary", title: t.title, description: desc },
+    openGraph: { title: `${t.title} · Rotta 365`, description: desc, type: "article", locale: "pt_BR", siteName: "Rotta 365" },
+    twitter: { card: "summary_large_image", title: `${t.title} · Rotta 365`, description: desc },
   };
 }
 

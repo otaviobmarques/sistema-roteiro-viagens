@@ -7,6 +7,7 @@ import {
   LayoutGrid, Sparkles, Compass, Store, Route, Map, Ticket, Wallet, Users, Luggage, Bell, CreditCard, User, Shield, Menu, X, Sun, Search, Plus,
 } from "lucide-react";
 import { Logo, PinoAvatar, Avatar } from "./ui";
+import { InstallButton } from "./pwa";
 
 type ShellProps = {
   children: React.ReactNode;
@@ -80,6 +81,7 @@ export function AppShell({ children, userName, avatarUrl, credits, unread, isAdm
         </div>
       ))}
       <div className="mt-auto space-y-2">
+        <InstallButton className="btn-secondary btn-sm w-full" label="Instalar o app no celular" />
         <Link href="/app/carteira" className="pino-border flex items-center gap-2.5 rounded-xl px-3 py-2.5">
           <PinoAvatar size={30} />
           <div className="leading-tight">

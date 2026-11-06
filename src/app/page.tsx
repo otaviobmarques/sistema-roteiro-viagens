@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo, PinoFull, PinoAvatar } from "@/components/ui";
+import { InstallButton } from "@/components/pwa";
 import { Route, TrendingUp, Star, Users, ShieldCheck, Sparkles, Wallet, Sun } from "lucide-react";
 
 export default function Landing() {
@@ -14,6 +15,7 @@ export default function Landing() {
           <a href="#precos" className="rounded-lg px-3 py-1.5 font-medium hover:bg-blue-50">Preços</a>
         </nav>
         <div className="flex gap-2">
+          <InstallButton className="btn-ghost btn-sm hidden sm:inline-flex" label="Instalar" />
           <Link href="/entrar" className="btn-secondary btn-sm">Entrar</Link>
           <Link href="/entrar?modo=criar" className="btn-primary btn-sm">Começar grátis</Link>
         </div>
