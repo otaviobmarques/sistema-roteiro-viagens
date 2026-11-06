@@ -17,6 +17,8 @@ const GuideSchema = z.object({
     summary: z.string().describe("como funciona o atendimento médico para turistas e custo, em até 30 palavras"),
     agreement: z.string().nullable().describe("acordo de saúde Brasil–país (ex.: certificado emitido antes da viagem); null se não houver"),
     vaccines: z.string().describe("vacinas exigidas ou recomendadas (ex.: febre amarela); 'nenhuma exigida' se for o caso"),
+    yellow_fever: z.enum(["exigido", "recomendado", "nao"]).describe("certificado internacional de vacinação contra febre amarela (CIVP) para quem chega do Brasil: exigido na entrada, apenas recomendado, ou não"),
+    vaccines_recommended: z.array(z.string()).describe("vacinas recomendadas além das de rotina (ex.: hepatite A, febre tifoide); [] se nenhuma"),
     medicines: z.string().describe("cuidado com remédios na bagagem, em até 20 palavras"),
   }),
   connectivity: z.object({

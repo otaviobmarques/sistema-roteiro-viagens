@@ -45,10 +45,20 @@ export function buildTripChecklist(args: {
     add("pre_viagem", "Seguro e saúde", mandatory ? `Contratar o seguro viagem (pode ser exigido na entrada${schengenLike ? ": cobertura médica mínima de € 30 mil" : ""})` : "Contratar o seguro viagem com boa cobertura médica", 15);
     add("pre_viagem", "Seguro e saúde", "Ver se o seu cartão de crédito inclui seguro viagem e o que ele cobre", 20);
     g.forEach(({ country, guide }) => guide.health.agreement && add("pre_viagem", "Seguro e saúde", `Emitir antes de viajar o certificado do acordo de saúde Brasil–${country}`, 20));
-    g.forEach(({ country, guide }) => !/nenhuma/i.test(guide.health.vaccines) && add("pre_viagem", "Seguro e saúde", `Ver no posto de saúde as vacinas para ${country}`, 30));
+    // vacinas: febre amarela (CIVP) tem regra própria; a vacina vale para o certificado 10 dias depois de tomada
+    g.forEach(({ country, guide }) => {
+      const yf = guide.health.yellow_fever ?? (/febre amarela/i.test(guide.health.vaccines) && /exig/i.test(guide.health.vaccines) ? "exigido" : "nao");
+      if (yf === "exigido") add("pre_viagem", "Seguro e saúde", `Febre amarela: tomar a vacina pelo menos 10 dias antes e emitir o certificado internacional (CIVP) no gov.br, exigido para ${country}`, 30);
+      else if (yf === "recomendado") add("pre_viagem", "Seguro e saúde", `Febre amarela: vacina recomendada para ${country}, tome pelo menos 10 dias antes`, 30);
+      const rec = (guide.health.vaccines_recommended ?? []).filter((v) => !/febre amarela/i.test(v));
+      if (rec.length) add("pre_viagem", "Seguro e saúde", `Vacinas recomendadas para ${country}: ${rec.slice(0, 4).join(", ")} (ver no posto de saúde)`, 30);
+    });
   } else {
     add("pre_viagem", "Seguro e saúde", "Avaliar um seguro viagem nacional (cobre imprevistos e bagagem)", 10);
   }
+  add("pre_viagem", "Seguro e saúde", args.international
+    ? "Conferir a caderneta de vacinação no posto de saúde (com pelo menos 30 dias de antecedência)"
+    : "Conferir a caderneta de vacinação: a vacina de febre amarela é recomendada em todo o Brasil (tome pelo menos 10 dias antes)", 30);
   add("pre_viagem", "Seguro e saúde", "Separar os remédios de uso contínuo, com a receita", 3);
 
   // Celular e internet

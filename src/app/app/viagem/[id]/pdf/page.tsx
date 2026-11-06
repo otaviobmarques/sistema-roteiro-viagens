@@ -293,7 +293,10 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
             <GuideCard title="Saúde">
               <p>{g.health.summary}</p>
               {g.health.agreement && <p className="mt-1"><b>Acordo Brasil–{country}:</b> {g.health.agreement}</p>}
+              {g.health.yellow_fever === "exigido" && <p className="mt-1 rounded-md bg-warn-50 px-2 py-1 font-semibold text-warn">Febre amarela: certificado internacional (CIVP) exigido na entrada. Tome a vacina pelo menos 10 dias antes e emita o CIVP no gov.br.</p>}
+              {g.health.yellow_fever === "recomendado" && <p className="mt-1"><b>Febre amarela:</b> vacina recomendada, tome pelo menos 10 dias antes.</p>}
               <p className="mt-1"><b>Vacinas:</b> {g.health.vaccines}</p>
+              {!!g.health.vaccines_recommended?.length && <p className="mt-1"><b>Recomendadas:</b> {g.health.vaccines_recommended.join(", ")}</p>}
               <p className="mt-1"><b>Remédios:</b> {g.health.medicines}</p>
             </GuideCard>
             <GuideCard title="Celular e internet">
