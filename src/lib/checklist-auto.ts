@@ -60,7 +60,7 @@ export function buildTripChecklist(args: {
 
   // Dinheiro
   if (args.international) {
-    [...new Set(g.map(({ guide }) => currency(guide.money.currency)))].forEach((cur) => add("pre_viagem", "Dinheiro", `Levar cartão internacional e um pouco de dinheiro em espécie (${cur})`, 7));
+    [...new Set(g.map(({ guide }) => currency(guide.money.currency)))].forEach((cur) => add("pre_viagem", "Dinheiro", `Levar cartão internacional e um pouco de dinheiro em espécie: ${cur}`, 7));
     add("pre_viagem", "Dinheiro", "Liberar o uso do cartão no exterior no app do banco", 3);
   }
 

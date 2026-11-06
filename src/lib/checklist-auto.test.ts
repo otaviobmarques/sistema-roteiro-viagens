@@ -21,7 +21,7 @@ describe("checklist automático", () => {
     expect(labels).toContain("Contratar o seguro viagem (pode ser exigido na entrada: cobertura médica mínima de € 30 mil)");
     expect(labels).toContain("Emitir antes de viajar o certificado do acordo de saúde Brasil–Itália");
     expect(labels).toContain("Adaptador de tomada para Itália (tipo C, F, L)");
-    expect(labels).toContain("Levar cartão internacional e um pouco de dinheiro em espécie (euro (EUR))");
+    expect(labels).toContain("Levar cartão internacional e um pouco de dinheiro em espécie: euro (EUR)");
     expect(labels.some((l) => /vacinas/i.test(l))).toBe(false);
     expect(new Set(labels).size).toBe(labels.length);
     expect(labels.every((l) => l.length <= 120)).toBe(true);
