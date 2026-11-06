@@ -5,7 +5,7 @@ import { z } from "zod";
 import { askJSON } from "./claude";
 import { supabaseAnon } from "../supabase/server";
 
-const GuideSchema = z.object({
+const GuideSchemaA = z.object({
   country_name: z.string().describe("nome do país em português"),
   insurance: z.object({
     mandatory: z.boolean().describe("seguro viagem é exigido na entrada para brasileiros"),
@@ -27,23 +27,6 @@ const GuideSchema = z.object({
     care_model: z.string().describe("como funciona o atendimento: rede pública, privada, pagamento na hora e reembolso pelo seguro ou atendimento direto pela rede credenciada; em até 30 palavras"),
     controlled_meds: z.string().describe("regras para remédios controlados: receita em inglês ou traduzida, quantidade, declaração na alfândega; em até 30 palavras"),
   }),
-  connectivity: z.object({
-    roaming: z.string().describe("como funciona usar o pacote internacional da operadora brasileira nesse país (sem citar marcas), em até 22 palavras"),
-    esim: z.string().describe("eSIM de viagem: vale a pena, cobertura, faixa de preço típica (sem citar marcas), em até 22 palavras"),
-    local_sim: z.string().describe("chip local: onde comprar (aeroporto, lojas oficiais, bancas), o que pedem, sem citar marcas, em até 22 palavras"),
-    tip: z.string().describe("dica prática de internet/ligações, em até 18 palavras"),
-    best_option: z.string().describe("qual costuma valer mais a pena nesse país para uma viagem curta: eSIM, chip local ou pacote da operadora, e por quê, em até 25 palavras"),
-    apps: z.array(z.string()).describe("4 a 6 TIPOS de app para baixar antes (ex.: app de transporte por aplicativo, app oficial do metrô da cidade, tradutor offline, mapas offline), sem citar marcas"),
-  }),
-  money: z.object({
-    currency: z.string().describe("moeda e câmbio aproximado em reais"),
-    cards: z.string().describe("aceitação de cartão, saque, IOF e conta/cartão em moeda estrangeira (sem citar bancos ou marcas), em até 25 palavras"),
-    tipping: z.string().describe("costume de gorjeta, em até 18 palavras"),
-    cash_mix: z.string().describe("mix recomendado: quanto em espécie, quanto em conta/cartão em moeda estrangeira e quanto no crédito, em até 30 palavras"),
-    tax_free: z.string().nullable().describe("devolução de imposto nas compras (tax-free): compra mínima, formulário na loja, onde validar no aeroporto antes de despachar; null se não existir"),
-    customs_destination: z.string().describe("o que é proibido ou restrito levar para esse país (alimentos de origem animal ou vegetal, sementes, valores em espécie acima do limite), em até 30 palavras"),
-  }),
-  power: z.object({ plugs: z.string().describe("tipos de tomada (letras) e se precisa de adaptador vindo do Brasil"), voltage: z.string() }),
   documents: z.object({
     visa: z.string().describe("visto ou autorização eletrônica para brasileiros (ex.: ETIAS, ESTA), em até 28 palavras"),
     passport: z.string().describe("validade mínima do passaporte e outros documentos"),
@@ -53,6 +36,25 @@ const GuideSchema = z.object({
     provisional_passport: z.string().describe("se o passaporte de emergência/provisório é aceito, em até 15 palavras"),
     entry_form: z.string().nullable().describe("formulário de entrada/imigração para preencher antes (online), ou null"),
   }),
+});
+const GuideSchemaB = z.object({
+  money: z.object({
+    currency: z.string().describe("moeda e câmbio aproximado em reais"),
+    cards: z.string().describe("aceitação de cartão, saque, IOF e conta/cartão em moeda estrangeira (sem citar bancos ou marcas), em até 25 palavras"),
+    tipping: z.string().describe("costume de gorjeta, em até 18 palavras"),
+    cash_mix: z.string().describe("mix recomendado: quanto em espécie, quanto em conta/cartão em moeda estrangeira e quanto no crédito, em até 30 palavras"),
+    tax_free: z.string().nullable().describe("devolução de imposto nas compras (tax-free): compra mínima, formulário na loja, onde validar no aeroporto antes de despachar; null se não existir"),
+    customs_destination: z.string().describe("o que é proibido ou restrito levar para esse país (alimentos de origem animal ou vegetal, sementes, valores em espécie acima do limite), em até 30 palavras"),
+  }),
+  connectivity: z.object({
+    roaming: z.string().describe("como funciona usar o pacote internacional da operadora brasileira nesse país (sem citar marcas), em até 22 palavras"),
+    esim: z.string().describe("eSIM de viagem: vale a pena, cobertura, faixa de preço típica (sem citar marcas), em até 22 palavras"),
+    local_sim: z.string().describe("chip local: onde comprar (aeroporto, lojas oficiais, bancas), o que pedem, sem citar marcas, em até 22 palavras"),
+    tip: z.string().describe("dica prática de internet/ligações, em até 18 palavras"),
+    best_option: z.string().describe("qual costuma valer mais a pena nesse país para uma viagem curta: eSIM, chip local ou pacote da operadora, e por quê, em até 25 palavras"),
+    apps: z.array(z.string()).describe("4 a 6 TIPOS de app para baixar antes (ex.: app de transporte por aplicativo, app oficial do metrô da cidade, tradutor offline, mapas offline), sem citar marcas"),
+  }),
+  power: z.object({ plugs: z.string().describe("tipos de tomada (letras) e se precisa de adaptador vindo do Brasil"), voltage: z.string() }),
   emergency: z.object({ number: z.string().describe("número geral de emergência"), police: z.string().nullable(), ambulance: z.string().nullable() }),
   phrases: z.array(z.object({ pt: z.string(), local: z.string() })).describe("5 frases úteis no idioma local; [] se o idioma for português"),
   culture: z.object({
@@ -63,6 +65,7 @@ const GuideSchema = z.object({
   embassy_city: z.string().describe("cidade onde fica a Embaixada do Brasil nesse país e outras com consulado, em até 15 palavras"),
   language: z.string().describe("idioma principal falado no país"),
 });
+const GuideSchema = GuideSchemaA.merge(GuideSchemaB);
 export type CountryGuide = z.infer<typeof GuideSchema>;
 
 export const normCountry = (c: string) => c.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -86,13 +89,16 @@ function applyFixedRules(country: string, g: CountryGuide): CountryGuide {
 }
 
 async function generate(country: string): Promise<CountryGuide> {
-  const r = await askJSON({
-    schema: GuideSchema,
+  const ask = <S extends z.ZodType>(schema: S, part: string) => askJSON({
+    schema,
     effort: "low",
-    maxTokens: 6000,
+    maxTokens: 4000,
     system: "Você é o Pino, guia de viagem do Rotta 365. Escreve para turistas brasileiros, em português do Brasil, de forma curta, prática e correta. Quando uma regra puder ter mudado recentemente, diga para confirmar no site oficial; nunca invente números ou exigências. Nunca cite nomes de empresas, marcas, operadoras, bancos ou aplicativos comerciais: fale da categoria (\"sua operadora\", \"um eSIM de viagem\", \"app de transporte\"). Programas oficiais de governo (ex.: autorização eletrônica de viagem) podem ser citados.",
-    prompt: `Monte o guia "antes de ir" para um turista brasileiro que vai viajar para: ${country}.`,
+    prompt: `Monte o guia "antes de ir" (${part}) para um turista brasileiro que vai viajar para: ${country}.`,
   });
+  // o formato completo é grande demais para uma resposta só: duas partes em paralelo
+  const [ra, rb] = await Promise.all([ask(GuideSchemaA, "documentos, seguro e saúde"), ask(GuideSchemaB, "dinheiro, celular, tomada, emergência, frases, cultura e embaixada")]);
+  const r = { data: { ...ra.data, ...rb.data } as CountryGuide };
   return applyFixedRules(country, { ...r.data, v: GUIDE_VERSION } as CountryGuide);
 }
 
