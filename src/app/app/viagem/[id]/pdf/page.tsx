@@ -12,6 +12,9 @@ import { memberName } from "@/lib/types";
 import { PrintButton, DownloadPdfButton } from "@/components/export/print-button";
 import { countryGuides, type CountryGuide, type Affiliates } from "@/lib/ai/country-guide";
 import { localFees, feesPerPerson, WHO_LABEL, type LocalFee } from "@/lib/local-fees";
+import { typicalClimate, type Climate } from "@/lib/ai/climate";
+import { hasNeeds, type SpecialGuide, type SpecialNeeds } from "@/lib/ai/special";
+import { CountryPageOne, CountryPageTwo, DomesticPage, SpecialPage, TimelinePage } from "./modules";
 import { fmtLocal, RES_KINDS } from "@/components/reservations/format";
 
 // O título vira o nome do arquivo ao "Salvar como PDF"
@@ -91,7 +94,7 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
   const { data: owner } = await supabase.from("profiles").select("name, referral_code").eq("id", trip.owner_id).maybeSingle();
   const referralUrl = owner?.referral_code ? `${site}/r/${owner.referral_code}` : site;
   // guia "antes de ir" (cache; se faltar, gera na hora, com limite de tempo)
-  const [guides, { data: affRow }, fees] = await Promise.all([
+  const [guides, { data: affRow }, fees, climates] = await Promise.all([
     Promise.race([
       countryGuides(supabase, destinations.map((d) => d.country)),
       new Promise<{ country: string; guide: CountryGuide }[]>((r) => setTimeout(() => r([]), 25000)),
@@ -101,7 +104,13 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
       localFees(supabase, destinations.map((d) => ({ city: d.city, country: d.country }))),
       new Promise<LocalFee[]>((r) => setTimeout(() => r([]), 20000)),
     ]),
+    Promise.race([
+      typicalClimate(supabase, destinations.map((d) => ({ city: d.city, country: d.country, start: d.start_date }))),
+      new Promise<Climate[]>((r) => setTimeout(() => r([]), 20000)),
+    ]),
   ]);
+  const needs = ((prefs as { special_needs?: SpecialNeeds } | null)?.special_needs ?? {}) as SpecialNeeds;
+  const specialG = (trip as unknown as { special_guide?: SpecialGuide | null }).special_guide ?? null;
   const feesCents = feesPerPerson(fees, Object.fromEntries(destinations.map((d) => [d.city, Math.max(1, (d.days ?? 1) - 1)])), people);
   const aff = (affRow?.value ?? {}) as Affiliates;
   const referralQr = await QRCode.toDataURL(referralUrl, { margin: 0, width: 220, color: { dark: "#0A1F4C", light: "#FFFFFF" } });
@@ -302,61 +311,16 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
         )}
       </section>
 
-      {/* ---------- ANTES DE IR (por país) ---------- */}
+      {/* ---------- PREPARAÇÃO E ANTES DE IR (módulos) ---------- */}
+      <TimelinePage start={trip.start_date} items={(checklist ?? []).map((c) => ({ label: c.label, list: c.list, due_date: c.due_date, done: c.done }))} />
       {guides.map(({ country, guide: g }) => (
-        <section key={country} className="sheet page-break mt-6 rounded-3xl border border-line bg-white p-9 shadow-[var(--shadow-card)]">
-          <div className="label text-blue">Antes de ir</div>
-          <h2 className="font-display text-2xl font-extrabold">{country}: o que preparar</h2>
-          <p className="mt-1 text-xs text-gray">Regras de entrada, acordos e preços mudam. Confirme nos sites oficiais (consulado e gov.br/mre) antes de viajar.</p>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 print:grid-cols-2">
-            <GuideCard title="Seguro viagem" badge={g.insurance.mandatory ? "Obrigatório" : "Recomendado"} strong={g.insurance.mandatory}>
-              <p><b>{g.insurance.requirement}</b></p>
-              <p className="mt-1">{g.insurance.recommended}</p>
-              {g.insurance.tips.slice(0, 3).map((t) => <p key={t} className="mt-1">• {t}</p>)}
-              {aff.seguro?.url && <PartnerLink url={aff.seguro.url} label={aff.seguro.label || "Cotar seguro viagem"} />}
-            </GuideCard>
-            <GuideCard title="Saúde">
-              <p>{g.health.summary}</p>
-              {g.health.agreement && <p className="mt-1"><b>Acordo Brasil–{country}:</b> {g.health.agreement}</p>}
-              {g.health.yellow_fever === "exigido" && <p className="mt-1 rounded-md bg-warn-50 px-2 py-1 font-semibold text-warn">Febre amarela: certificado internacional (CIVP) exigido na entrada. Tome a vacina pelo menos 10 dias antes e emita o CIVP no gov.br.</p>}
-              {g.health.yellow_fever === "recomendado" && <p className="mt-1"><b>Febre amarela:</b> vacina recomendada, tome pelo menos 10 dias antes.</p>}
-              <p className="mt-1"><b>Vacinas:</b> {g.health.vaccines}</p>
-              {!!g.health.vaccines_recommended?.length && <p className="mt-1"><b>Recomendadas:</b> {g.health.vaccines_recommended.join(", ")}</p>}
-              <p className="mt-1"><b>Remédios:</b> {g.health.medicines}</p>
-            </GuideCard>
-            <GuideCard title="Celular e internet">
-              <p><b>Roaming:</b> {g.connectivity.roaming}</p>
-              <p className="mt-1"><b>eSIM:</b> {g.connectivity.esim}</p>
-              <p className="mt-1"><b>Chip local:</b> {g.connectivity.local_sim}</p>
-              <p className="mt-1">• {g.connectivity.tip}</p>
-              {aff.esim?.url && <PartnerLink url={aff.esim.url} label={aff.esim.label || "Comprar eSIM de viagem"} />}
-            </GuideCard>
-            <GuideCard title="Documentos e visto">
-              <p>{g.documents.visa}</p>
-              <p className="mt-1"><b>Passaporte:</b> {g.documents.passport}</p>
-              {g.documents.other && <p className="mt-1">{g.documents.other}</p>}
-            </GuideCard>
-            <GuideCard title="Dinheiro e gorjeta">
-              <p><b>Moeda:</b> {g.money.currency}</p>
-              <p className="mt-1">{g.money.cards}</p>
-              <p className="mt-1"><b>Gorjeta:</b> {g.money.tipping}</p>
-            </GuideCard>
-            <GuideCard title="Tomada e emergência">
-              <p><b>Tomada:</b> {g.power.plugs} · {g.power.voltage}</p>
-              <p className="mt-1"><b>Emergência:</b> {g.emergency.number}{g.emergency.police ? ` · polícia ${g.emergency.police}` : ""}{g.emergency.ambulance ? ` · ambulância ${g.emergency.ambulance}` : ""}</p>
-            </GuideCard>
-          </div>
-          {g.phrases.length > 0 && (
-            <div className="avoid mt-4">
-              <div className="label mb-2">Frases úteis</div>
-              <div className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2 print:grid-cols-2">
-                {g.phrases.slice(0, 6).map((f) => <div key={f.pt} className="flex justify-between gap-3 border-b border-line py-1"><span className="text-gray">{f.pt}</span><b>{f.local}</b></div>)}
-              </div>
-            </div>
-          )}
-          {(aff.seguro?.url || aff.esim?.url) && <p className="mt-4 text-[10px] text-gray">Links marcados como “parceiro” podem gerar comissão para o Rotta 365, sem custo extra para você.</p>}
-        </section>
+        <div key={country}>
+          <CountryPageOne country={country} g={g} aff={aff} kids={trip.travelers_children} needs={needs} />
+          <CountryPageTwo country={country} g={g} aff={aff} climates={climates.filter((c) => destinations.some((d) => d.city === c.city && d.country && (d.country === country || g.country_name === d.country)))} />
+        </div>
       ))}
+      {!guides.length && <DomesticPage climates={climates} />}
+      {specialG && hasNeeds(needs) && <SpecialPage sg={specialG} needs={needs} />}
 
       {/* ---------- DIAS ---------- */}
       {days.map((d, di) => {

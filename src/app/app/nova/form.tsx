@@ -32,6 +32,7 @@ export function NewTripForm({ q, prefill, defaults }: { q: string | null; prefil
   const [occasion, setOccasion] = useState(prefill.occasion ?? "");
   const [budget, setBudget] = useState("");
   const [notes, setNotes] = useState(q ?? "");
+  const [needs, setNeeds] = useState<{ alergia: string; mobilidade: boolean; pet: boolean; gestante: boolean; esportes: boolean; alergiaOn: boolean }>({ alergia: "", mobilidade: false, pet: false, gestante: false, esportes: false, alergiaOn: false });
   const [busy, setBusy] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -85,6 +86,7 @@ export function NewTripForm({ q, prefill, defaults }: { q: string | null; prefil
         destinations: allDests, start_date: start, end_date: end, arrival: arrival || null, departure: departure || null, origin_city: defaults.origin || null,
         adults, children, children_ages: ages.split(/[,; ]+/).map(Number).filter((n) => Number.isFinite(n) && n >= 0 && n < 18),
         profile, pace, interests, must_haves: mustInput.trim() ? [...must, mustInput.trim()] : must, occasion: occasion || null,
+        special_needs: { alergia: needs.alergiaOn ? needs.alergia.trim() || null : null, mobilidade: needs.mobilidade, pet: needs.pet, gestante: needs.gestante, esportes: needs.esportes },
         budget_cap_cents: budget ? parseMoneyToCents(budget) : null, notes: notes || null,
       }),
     });
@@ -173,6 +175,16 @@ export function NewTripForm({ q, prefill, defaults }: { q: string | null; prefil
           <div className="flex flex-wrap gap-2">
             {OCCASIONS.map((o) => <button type="button" key={o} onClick={() => setOccasion(occasion === o ? "" : o)} className={`chip min-h-9 ${occasion === o ? "border-blue bg-blue text-white" : ""}`}>{o}</button>)}
           </div>
+        </div>
+        <div>
+          <span className="label mb-2 block">Precisa de algo especial?</span>
+          <div className="flex flex-wrap gap-2">
+            {([["alergiaOn", "Alergia ou restrição alimentar"], ["mobilidade", "Mobilidade reduzida"], ["pet", "Viajando com pet"], ["gestante", "Gestante"], ["esportes", "Esportes radicais ou neve"]] as const).map(([k, l]) => (
+              <button type="button" key={k} onClick={() => setNeeds({ ...needs, [k]: !needs[k] })} className={`chip min-h-9 ${needs[k] ? "border-blue bg-blue text-white" : ""}`}>{l}</button>
+            ))}
+          </div>
+          {needs.alergiaOn && <input className="input mt-2" value={needs.alergia} onChange={(e) => setNeeds({ ...needs, alergia: e.target.value })} placeholder="Ex.: doença celíaca; alergia grave a amendoim e frutos do mar" aria-label="Qual alergia ou restrição" />}
+          <span className="mt-1 block text-[11px] text-gray">O Pino ajusta o roteiro e monta um guia só para isso: cartão de alergia traduzido, dicas de acessibilidade, regras para pets e mais.</span>
         </div>
         <label className="block"><span className="label mb-1 block">Observações</span><textarea className="input min-h-20 py-2" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Restrições, ritmo das crianças, dias livres, lugares já visitados…" /></label>
       </section>

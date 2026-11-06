@@ -12,7 +12,7 @@ const guide = {
   documents: { visa: "", passport: "", other: null },
   emergency: { number: "112", police: null, ambulance: null },
   phrases: [],
-} as CountryGuide;
+} as unknown as CountryGuide;
 
 describe("checklist automático", () => {
   const list = buildTripChecklist({ start: "2030-05-10", guides: [{ country: "Itália", guide }], cities: ["Roma", "Florença"], international: true, weather: [{ rain: 70, tmax: 12 }], tickets: ["Coliseu"], children: 0 });

@@ -15,6 +15,8 @@ import { photosFor, transitTips, type LegIn } from "../enrich";
 import { countryGuides } from "./country-guide";
 import { buildTripChecklist } from "../checklist-auto";
 import { localFees } from "../local-fees";
+import { specialGuide, needsBriefing, type SpecialNeeds } from "./special";
+import { typicalClimate } from "./climate";
 import { haversineKm } from "../domain/geo";
 
 
@@ -201,7 +203,7 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
     children: trip.travelers_children,
     childrenAges: trip.children_ages ?? [],
     occasion: prefs?.occasion ?? null,
-    notes: prefs?.notes ?? null,
+    notes: [prefs?.notes, needsBriefing(prefs?.special_needs as SpecialNeeds)].filter(Boolean).join(". ") || null,
     mustHaves: (must ?? []).map((m) => m.original_text),
     budgetCapCents: prefs?.budget_cap_cents ?? null,
     restrictions: (profile?.restrictions as Record<string, unknown>) ?? {},
@@ -220,6 +222,8 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
   const year = Number(String(trip.start_date).slice(0, 4));
   // o guia "antes de ir" de cada país é preparado em paralelo (fica no cache para o relatório)
   const guidesWarm = countryGuides(supabase, inputs.map((d) => d.country)).catch(() => []);
+  const specialWarm = specialGuide((prefs?.special_needs ?? {}) as SpecialNeeds, inputs.map((d) => ({ city: d.city, country: d.country }))).catch(() => null);
+  const climateWarm = typicalClimate(supabase, inputs.map((d) => ({ city: d.city, country: d.country, start: d.start }))).catch(() => []);
   const feesWarm = localFees(supabase, inputs.map((d) => ({ city: d.city, country: d.country }))).catch(() => []);
   const [candSets, weathers, hols] = await Promise.all([
     Promise.all(inputs.map((d) => getCandidates(supabase, d.city, d.lat, d.lng, { country: d.country }))),
@@ -332,6 +336,13 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
   const viability = tripViability(dayScores);
   const guides = await guidesWarm;
   const fees = await feesWarm;
+  const [special, climates] = await Promise.all([specialWarm, climateWarm]);
+  if (special) {
+    usage.inputTokens += special.usage.inputTokens;
+    usage.outputTokens += special.usage.outputTokens;
+    usage.costCents += special.usage.costCents;
+  }
+  await supabase.from("trips").update({ special_guide: special?.guide ?? null }).eq("id", tripId);
 
   // Enriquecimento: fotos (Wikimedia, grátis) e "como chegar" em cada trecho, já na ordem final
   const legIns: LegIn[] = [];
@@ -401,6 +412,7 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
       start: trip.start_date, guides, cities: inputs.map((d) => d.city), international: intl,
       weather: daysOut.map((d) => ({ rain: d.rain, tmax: weathers[inputs.findIndex((x) => x.id === d.destId)]?.[d.date]?.tmax ?? null })),
       tickets, children: trip.travelers_children ?? 0, fees,
+      needs: (prefs?.special_needs ?? {}) as SpecialNeeds, climates,
     });
     const { data: existing } = await supabase.from("checklist_items").select("label, list").eq("trip_id", tripId);
     const have = new Set((existing ?? []).map((e) => `${e.list}:${String(e.label).toLowerCase()}`));

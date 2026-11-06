@@ -30,6 +30,7 @@ const Body = z.object({
   occasion: z.string().optional().nullable(),
   budget_cap_cents: z.number().int().positive().optional().nullable(),
   notes: z.string().max(800).optional().nullable(),
+  special_needs: z.object({ alergia: z.string().max(200).nullable().optional(), mobilidade: z.boolean().optional(), pet: z.boolean().optional(), gestante: z.boolean().optional(), esportes: z.boolean().optional() }).optional(),
   locked: z.record(z.string(), z.number().int().min(1)).optional(),
 });
 
@@ -125,7 +126,7 @@ export async function POST(req: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     tripId = t.id;
   }
-  await supabase.from("trip_preferences").upsert({ trip_id: tripId, travel_profile: b.profile, interests: b.interests, occasion: b.occasion ?? null, budget_cap_cents: b.budget_cap_cents ?? null, notes: b.notes ?? null });
+  await supabase.from("trip_preferences").upsert({ trip_id: tripId, travel_profile: b.profile, interests: b.interests, occasion: b.occasion ?? null, budget_cap_cents: b.budget_cap_cents ?? null, notes: b.notes ?? null, special_needs: b.special_needs ?? {} });
   let cursor = b.start_date;
   await supabase.from("trip_destinations").insert(allocated.map((d, i) => {
     const row = { trip_id: tripId, city: d.city, country: d.country, lat: d.lat, lng: d.lng, start_date: cursor, end_date: addDays(cursor, (d.days ?? 1) - 1), days: d.days, locked: !!d.locked, position: i };
