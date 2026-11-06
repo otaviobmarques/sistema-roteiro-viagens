@@ -78,9 +78,10 @@ export async function localFees(supabase: SupabaseClient, dests: { city: string;
     out.push(...ai.filter((f) => !(f.who === "pessoa_noite" && d.country && HOTEL_TAX_COUNTRIES.has(n(d.country)))));
   }));
   for (const d of dests) if (d.country && HOTEL_TAX_COUNTRIES.has(n(d.country))) hotelCountries.add(d.country);
+  const de = (c: string) => (/^portugal$/.test(n(c)) ? "de" : /^paises baixos$/.test(n(c)) ? "dos" : "da");
   for (const c of hotelCountries) {
     const cities = dests.filter((d) => d.country === c).map((d) => d.city);
-    out.push({ city: cities.join(", "), name: "Taxa de turismo na hospedagem", who: "pessoa_noite", how: `Em muitas cidades de ${c}, o hotel cobra uma taxa municipal por pessoa e por noite, em geral no check-in e fora do valor da reserva. Confira na sua reserva.`, approx_brl: null, checklist: `Separar a taxa de turismo cobrada na hospedagem em ${cities.join(", ")} (por pessoa, por noite)`, due: 2, source: "fixo" });
+    out.push({ city: cities.join(", "), name: "Taxa de turismo na hospedagem", who: "pessoa_noite", how: `Em muitas cidades ${de(c)} ${c}, o hotel cobra uma taxa municipal por pessoa e por noite, em geral no check-in e fora do valor da reserva. Confira na sua reserva.`, approx_brl: null, checklist: `Separar a taxa de turismo cobrada na hospedagem em ${cities.join(", ")} (por pessoa, por noite)`, due: 2, source: "fixo" });
   }
   return out;
 }
