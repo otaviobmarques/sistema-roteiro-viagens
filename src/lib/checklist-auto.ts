@@ -1,6 +1,7 @@
 // Bônus: checklist de viagem montado sozinho a partir do roteiro e do guia do país (sem citar empresas).
 import type { CountryGuide } from "./ai/country-guide";
 import { addDays } from "./domain/time";
+import type { LocalFee } from "./local-fees";
 
 export type AutoCheck = { list: "pre_viagem" | "mala"; category: string; label: string; due_date: string | null };
 
@@ -12,6 +13,7 @@ export function buildTripChecklist(args: {
   weather: { rain: number | null; tmax: number | null }[];
   tickets: string[]; // atrações pagas mais importantes
   children: number;
+  fees?: LocalFee[];
 }): AutoCheck[] {
   // prazo ideal antes da ida; se já passou, vence hoje (o app mostra como "fazer agora")
   const today = new Date().toISOString().slice(0, 10);
@@ -71,8 +73,13 @@ export function buildTripChecklist(args: {
   // Dinheiro
   if (args.international) {
     [...new Set(g.map(({ guide }) => currency(guide.money.currency)))].forEach((cur) => add("pre_viagem", "Dinheiro", `Levar cartão internacional e um pouco de dinheiro em espécie: ${cur}`, 7));
-    add("pre_viagem", "Dinheiro", "Liberar o uso do cartão no exterior no app do banco", 3);
+    add("pre_viagem", "Dinheiro", "Comparar as formas de pagar: cartão de crédito, pré-pago ou conta em moeda estrangeira e dinheiro (IOF e câmbio)", 15);
+    add("pre_viagem", "Dinheiro", "Levar dois cartões, de preferência de bandeiras diferentes (um fica de reserva)", 7);
+    add("pre_viagem", "Dinheiro", "Liberar o uso do cartão no exterior no app do banco e conferir o limite", 3);
   }
+
+  // Taxas locais (ambiental, de turismo, de acesso, de hospedagem)
+  (args.fees ?? []).forEach((f) => add("pre_viagem", "Taxas locais", f.checklist, f.due));
 
   // Ingressos
   if (args.tickets.length) add("pre_viagem", "Ingressos", `Comprar com antecedência: ${args.tickets.slice(0, 4).join(", ")}`, 10);

@@ -14,6 +14,7 @@ import { TripPlaces } from "../domain/dedupe";
 import { photosFor, transitTips, type LegIn } from "../enrich";
 import { countryGuides } from "./country-guide";
 import { buildTripChecklist } from "../checklist-auto";
+import { localFees } from "../local-fees";
 import { haversineKm } from "../domain/geo";
 
 
@@ -219,6 +220,7 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
   const year = Number(String(trip.start_date).slice(0, 4));
   // o guia "antes de ir" de cada país é preparado em paralelo (fica no cache para o relatório)
   const guidesWarm = countryGuides(supabase, inputs.map((d) => d.country)).catch(() => []);
+  const feesWarm = localFees(supabase, inputs.map((d) => ({ city: d.city, country: d.country }))).catch(() => []);
   const [candSets, weathers, hols] = await Promise.all([
     Promise.all(inputs.map((d) => getCandidates(supabase, d.city, d.lat, d.lng, { country: d.country }))),
     Promise.all(inputs.map((d) => weather(d.lat, d.lng, d.start, addDays(d.start, d.days - 1)))),
@@ -329,6 +331,7 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
   }
   const viability = tripViability(dayScores);
   const guides = await guidesWarm;
+  const fees = await feesWarm;
 
   // Enriquecimento: fotos (Wikimedia, grátis) e "como chegar" em cada trecho, já na ordem final
   const legIns: LegIn[] = [];
@@ -397,7 +400,7 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
     const checks = buildTripChecklist({
       start: trip.start_date, guides, cities: inputs.map((d) => d.city), international: intl,
       weather: daysOut.map((d) => ({ rain: d.rain, tmax: weathers[inputs.findIndex((x) => x.id === d.destId)]?.[d.date]?.tmax ?? null })),
-      tickets, children: trip.travelers_children ?? 0,
+      tickets, children: trip.travelers_children ?? 0, fees,
     });
     const { data: existing } = await supabase.from("checklist_items").select("label, list").eq("trip_id", tripId);
     const have = new Set((existing ?? []).map((e) => `${e.list}:${String(e.label).toLowerCase()}`));

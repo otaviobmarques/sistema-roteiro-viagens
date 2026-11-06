@@ -11,6 +11,7 @@ import type { Day, Item, Reservation } from "@/lib/types";
 import { memberName } from "@/lib/types";
 import { PrintButton, DownloadPdfButton } from "@/components/export/print-button";
 import { countryGuides, type CountryGuide, type Affiliates } from "@/lib/ai/country-guide";
+import { localFees, feesPerPerson, WHO_LABEL, type LocalFee } from "@/lib/local-fees";
 import { fmtLocal, RES_KINDS } from "@/components/reservations/format";
 
 // O título vira o nome do arquivo ao "Salvar como PDF"
@@ -90,13 +91,18 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
   const { data: owner } = await supabase.from("profiles").select("name, referral_code").eq("id", trip.owner_id).maybeSingle();
   const referralUrl = owner?.referral_code ? `${site}/r/${owner.referral_code}` : site;
   // guia "antes de ir" (cache; se faltar, gera na hora, com limite de tempo)
-  const [guides, { data: affRow }] = await Promise.all([
+  const [guides, { data: affRow }, fees] = await Promise.all([
     Promise.race([
       countryGuides(supabase, destinations.map((d) => d.country)),
       new Promise<{ country: string; guide: CountryGuide }[]>((r) => setTimeout(() => r([]), 25000)),
     ]),
     supabase.from("app_settings").select("value").eq("key", "affiliates").maybeSingle(),
+    Promise.race([
+      localFees(supabase, destinations.map((d) => ({ city: d.city, country: d.country }))),
+      new Promise<LocalFee[]>((r) => setTimeout(() => r([]), 20000)),
+    ]),
   ]);
+  const feesCents = feesPerPerson(fees, Object.fromEntries(destinations.map((d) => [d.city, Math.max(1, (d.days ?? 1) - 1)])), people);
   const aff = (affRow?.value ?? {}) as Affiliates;
   const referralQr = await QRCode.toDataURL(referralUrl, { margin: 0, width: 220, color: { dark: "#0A1F4C", light: "#FFFFFF" } });
   const qr = await QRCode.toDataURL(`${site}/app/viagem/${id}/hoje`, { margin: 0, width: 220, color: { dark: "#0A1F4C", light: "#FFFFFF" } });
@@ -269,10 +275,29 @@ export default async function PdfPage({ params }: { params: Promise<{ id: string
                 {SPLIT_LABEL.filter(([k]) => tripSplit[k] > 0).map(([k, l]) => (
                   <tr key={k}><td className="px-3 py-2">{l}</td><td className="mono px-3 py-2 text-right">{fmtBRL(tripSplit[k])}</td><td className="mono w-16 px-3 py-2 text-right text-gray">{Math.round((tripSplit[k] / totalCost) * 100)}%</td></tr>
                 ))}
-                <tr className="bg-ice font-bold"><td className="px-3 py-2">Total da viagem</td><td className="mono px-3 py-2 text-right">{fmtBRL(totalCost)}</td><td /></tr>
+                {feesCents > 0 && <tr><td className="px-3 py-2">Taxas locais (estimativa)</td><td className="mono px-3 py-2 text-right">{fmtBRL(feesCents)}</td><td /></tr>}
+                <tr className="bg-ice font-bold"><td className="px-3 py-2">Total da viagem</td><td className="mono px-3 py-2 text-right">{fmtBRL(totalCost + feesCents)}</td><td /></tr>
               </tbody>
             </table>
             <p className="mt-1.5 text-[11px] text-gray">Hospedagem por noite e por quarto, conforme o perfil escolhido. Passagens aéreas não estão incluídas.</p>
+          </div>
+        )}
+
+        {fees.length > 0 && (
+          <div className="avoid mt-6">
+            <div className="label mb-2">Taxas locais para pagar</div>
+            <ul className="space-y-2">
+              {fees.map((f) => (
+                <li key={f.city + f.name} className="rounded-xl border border-warn/30 bg-warn-50/60 px-3 py-2 text-[12px] leading-snug">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <b className="text-navy">{f.city} · {f.name}</b>
+                    <span className="text-[11px] text-gray">{WHO_LABEL[f.who]}{f.approx_brl != null ? ` · cerca de ${fmtBRL(Math.round(f.approx_brl * 100))}` : ""}</span>
+                  </div>
+                  <div className="mt-0.5 text-gray">{f.how}</div>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-[11px] text-gray">Valores e regras mudam: confirme no site oficial da prefeitura ou do órgão responsável antes de viajar.</p>
           </div>
         )}
       </section>
