@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, RefreshCw } from "lucide-react";
 
 /** Suporte: refaz o roteiro do cliente sem cobrar (país inteiro vira cidades-base). */
-export function RegenerateTrip({ tripId, title }: { tripId: string; title: string }) {
+export function RegenerateTrip({ tripId, title, variant = "yellow" }: { tripId: string; title: string; variant?: "yellow" | "ghost" }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -19,8 +19,8 @@ export function RegenerateTrip({ tripId, title }: { tripId: string; title: strin
     if (r.ok) router.refresh();
   };
   return (
-    <span className="inline-flex flex-col items-end gap-1">
-      <button className="btn-ghost btn-sm" onClick={run} disabled={busy} title="Refazer sem cobrar do cliente">
+    <span className="inline-flex flex-col items-stretch gap-1">
+      <button className={variant === "yellow" ? "btn-yellow btn-sm" : "btn-ghost btn-sm"} onClick={run} disabled={busy} title="Refazer sem cobrar do cliente">
         {busy ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} {busy ? "Refazendo… (até 2 min)" : "Refazer"}
       </button>
       {msg && <span className={`max-w-[260px] text-right text-xs ${msg.ok ? "text-ok" : "text-danger"}`}>{msg.text}</span>}

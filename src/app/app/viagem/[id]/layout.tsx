@@ -5,10 +5,12 @@ import { memberName } from "@/lib/types";
 import { TripTabs } from "./tabs";
 import { DownloadPdfButton } from "@/components/export/print-button";
 import { FileDown, Share2 } from "lucide-react";
+import { RegenerateTrip } from "@/components/admin/regenerate-trip";
 
 export default async function TripLayout({ children, params }: { children: React.ReactNode; params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { trip, members, prefs, role } = await loadTrip(id);
+  const { supabase, user, trip, members, prefs, role } = await loadTrip(id);
+  const { data: me } = await supabase.from("profiles").select("is_admin").eq("id", user.id).maybeSingle();
   const initials = (trip.emoji || trip.title.slice(0, 2)).toUpperCase();
   return (
     <div>
@@ -24,11 +26,14 @@ export default async function TripLayout({ children, params }: { children: React
             {trip.viability_score != null && <> · viabilidade <b className="text-navy">{trip.viability_score}</b></>}
           </div>
         </div>
-        <div className="flex w-full items-center gap-2 sm:w-auto">
+        <div className="flex w-full items-start gap-2 sm:w-auto">
         <div className="mr-auto flex -space-x-2 sm:mr-0" aria-label="Viajantes">
           {members.slice(0, 5).map((m) => <Avatar key={m.id} name={memberName(m)} url={m.profiles?.avatar_url} size={30} />)}
         </div>
-        <Link href={`/app/viagem/${id}/grupo`} className="btn-secondary btn-sm"><Share2 size={14} /> Compartilhar</Link>
+        <div className="flex flex-col items-stretch gap-1.5">
+          <Link href={`/app/viagem/${id}/grupo`} className="btn-secondary btn-sm"><Share2 size={14} /> Compartilhar</Link>
+          {me?.is_admin && trip.generated && <RegenerateTrip tripId={id} title={trip.title} variant="yellow" />}
+        </div>
         <Link href={`/app/viagem/${id}/pdf`} className="btn-secondary btn-sm"><FileDown size={14} /> Relatório</Link>
         <DownloadPdfButton tripId={id} title={trip.title} />
         </div>

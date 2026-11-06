@@ -76,6 +76,10 @@ h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0
   @apply btn text-navy hover:bg-blue-50;
 }
 
+@utility btn-yellow {
+  @apply btn border border-[#E8B500] bg-[#FFC928] text-navy hover:bg-[#FFBF00];
+}
+
 @utility btn-danger {
   @apply btn border border-danger/30 bg-white text-danger hover:bg-danger-50;
 }

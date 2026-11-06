@@ -115,7 +115,7 @@ export default async function AdminTrips({ searchParams }: { searchParams: Promi
                     <div className="flex flex-wrap justify-end gap-2">
                       <a href={`/app/viagem/${r.id}/pdf`} target="_blank" rel="noreferrer" className="btn-secondary btn-sm"><ExternalLink size={14} /> Ver</a>
                       <DownloadPdfButton tripId={r.id} title={r.title} />
-                      <RegenerateTrip tripId={r.id} title={r.title} />
+                      <RegenerateTrip tripId={r.id} title={r.title} variant="yellow" />
                     </div>
                   ) : <span className="text-xs text-gray">sem dias montados</span>}
                 </td>
