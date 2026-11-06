@@ -109,7 +109,7 @@ PERFIL: ${TRAVEL_PROFILES[b.profile].label} — ${TRAVEL_PROFILES[b.profile].ide
 RITMO: ${b.pace}
 INTERESSES: ${interestsText(b.interests)}
 OCASIÃO: ${b.occasion || "nenhuma"}
-NÃO ABRO MÃO: ${b.mustHaves.length ? b.mustHaves.join("; ") : "nenhum"}
+NÃO ABRO MÃO (da viagem toda; inclua aqui só os que ficam neste destino e ignore os de outras cidades): ${b.mustHaves.length ? b.mustHaves.join("; ") : "nenhum"}
 RESTRIÇÕES: ${JSON.stringify(b.restrictions)}
 OBSERVAÇÕES: ${b.notes || "-"}
 ${ctx.isFirst ? "" : "Chegada vinda do destino anterior no primeiro dia: deixe a manhã do primeiro dia mais leve."}
@@ -209,6 +209,9 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
   // Converte e verifica (salvaguarda 9.3: código que não bate com candidato é descartado)
   const legs = transferLegs(inputs.map((d) => ({ id: d.id, city: d.city, lat: d.lat, lng: d.lng })));
   const daysOut: { date: string; destId: string; title: string; items: SavedItem[]; rain: number | null; holiday: boolean }[] = [];
+  const usedPlaces = new Set<string>(); // o mesmo lugar não entra duas vezes na viagem
+  const usedMust = new Set<string>();
+  const key = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\(.*\)/, "").trim();
   const mustHaves: DestinationPlan["must_haves"] = [];
   const tips: string[] = [];
   for (let i = 0; i < inputs.length; i++) {
@@ -236,6 +239,10 @@ export async function generateTrip(supabase: SupabaseClient, tripId: string, use
         const cand = it.candidate ? codes.get(it.candidate) ?? null : null;
         if (it.candidate && !cand) continue; // inventado → descarta
         if (!cand && !it.must_have && !["nota", "livre"].includes(it.kind)) continue;
+        if (cand && usedPlaces.has(cand.id)) continue;
+        if (it.must_have && usedMust.has(key(cand?.name ?? it.title))) continue;
+        if (cand) usedPlaces.add(cand.id);
+        if (it.must_have) usedMust.add(key(cand?.name ?? it.title));
         const fit = cand ? fitScore({ interest: cand.interest, interests: b.interests, itemPriceLevel: cand.price_level, profile: b.profile, contextBonus: 0.7 }) : null;
         const quality = cand ? Math.min(10, 4 + cand.notability * 0.6) : null;
         const opts = it.options
