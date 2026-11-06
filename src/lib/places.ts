@@ -25,7 +25,7 @@ export type Candidate = {
 
 export let lastFetchInfo: Record<string, unknown> = {};
 
-export type Geo = { name: string; country: string | null; lat: number; lng: number; capital: boolean; bbox?: number[] };
+export type Geo = { name: string; country: string | null; lat: number; lng: number; capital: boolean; bbox?: number[]; region?: "country" | "state" | null };
 
 async function fetchJSON(url: string, init: RequestInit = {}, timeoutMs = 20000) {
   const ctrl = new AbortController();
@@ -54,6 +54,8 @@ export async function geocode(q: string): Promise<Geo | null> {
       lng: Number(r.lon),
       capital,
       bbox: r.boundingbox?.map(Number),
+      // país ou estado/região inteira: não dá para planejar no "centro do mapa", vira cidades-base
+      region: r.addresstype === "country" ? "country" : ["state", "region", "province"].includes(r.addresstype) ? "state" : null,
     };
   } catch {
     return null;

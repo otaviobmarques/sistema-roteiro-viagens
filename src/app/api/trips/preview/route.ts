@@ -6,6 +6,8 @@ import { orderDestinations, allocateDays, transferLegs } from "@/lib/domain/mult
 import { addDays, daysBetween } from "@/lib/domain/time";
 import { previewHighlights } from "@/lib/ai/itinerary";
 import { AIUnavailableError, aiConfigured } from "@/lib/ai/claude";
+import { expandRegion } from "@/lib/ai/regions";
+import type { Geo } from "@/lib/places";
 import type { TravelProfile } from "@/lib/domain/score";
 
 export const maxDuration = 120;
@@ -49,9 +51,39 @@ export async function POST(req: Request) {
   if (aiConfigured() && (left ?? 0) <= 0 && (wallet?.balance ?? 0) <= 0) return NextResponse.json({ error: "Você usou as 3 prévias grátis de hoje. Volte amanhã ou compre um crédito na Carteira para seguir agora." }, { status: 429 });
 
   // Geocodifica (base aberta) e verifica cada destino
-  const geos = await Promise.all(b.destinations.map((d) => geocode(d)));
-  const missing = b.destinations.filter((_, i) => !geos[i]);
+  const found = await Promise.all(b.destinations.map((d) => geocode(d)));
+  const missing = b.destinations.filter((_, i) => !found[i]);
   if (missing.length) return NextResponse.json({ error: `Não encontrei: ${missing.join(", ")}. Confira a grafia.` }, { status: 422 });
+
+  // País ou estado inteiro ("França", "Toscana"): o Pino troca pelas cidades-base certas (nunca o centro do mapa)
+  const geos: Geo[] = [];
+  const regionDays = new Map<string, number>(); // cidade -> dias sugeridos pelo Pino
+  let regionNote: string | null = null;
+  const expandedFrom: string[] = [];
+  for (const g of found as Geo[]) {
+    if (!g.region || !aiConfigured()) { geos.push(g); continue; }
+    const share = found.length === 1 ? totalDays : Math.max(2, Math.round(totalDays / found.length));
+    try {
+      const { cities } = await expandRegion({
+        region: g.name, country: g.country, kind: g.region, days: share, profile: b.profile, pace: b.pace, interests: b.interests,
+        occasion: b.occasion, notes: b.notes, arrival: b.arrival, departure: b.departure, mustHaves: b.must_haves,
+      });
+      const cityGeos: Geo[] = [];
+      for (const c of cities) {
+        const cg = await geocode(`${c.city}, ${g.country ?? g.name}`);
+        if (cg && !cg.region && !geos.some((x) => x.name === cg.name) && !cityGeos.some((x) => x.name === cg.name)) {
+          cityGeos.push(cg);
+          regionDays.set(cg.name, c.days);
+        }
+      }
+      if (cityGeos.length) { geos.push(...cityGeos); expandedFrom.push(g.name); } else geos.push(g);
+    } catch {
+      geos.push(g);
+    }
+  }
+  if (expandedFrom.length) regionNote = `${expandedFrom.join(" e ")} ${expandedFrom.length > 1 ? "são destinos grandes" : "é um destino grande"}: dividi a viagem nas cidades que mais combinam com você. Ajuste os dias ou troque se quiser.`;
+  if (geos.length > 8) geos.splice(8);
+  if (totalDays < geos.length) geos.splice(totalDays);
   const [arr, dep] = await Promise.all([b.arrival ? geocode(b.arrival) : null, b.departure ? geocode(b.departure) : null]);
 
   // Candidatos da base própria → peso de cada destino (quantos lugares combinam com os interesses)
@@ -66,7 +98,7 @@ export async function POST(req: Request) {
       lat: g!.lat,
       lng: g!.lng,
       capital: g!.capital,
-      weight: cands.length ? Math.max(1, Math.sqrt(weightFromInterests)) : g!.capital ? 3 : 1.5,
+      weight: regionDays.has(g!.name) ? regionDays.get(g!.name)! : cands.length ? Math.max(1, Math.sqrt(weightFromInterests)) : g!.capital ? 3 : 1.5,
       locked: b.locked?.[g!.name] != null,
       days: b.locked?.[g!.name],
     };
@@ -76,7 +108,7 @@ export async function POST(req: Request) {
   const legs = transferLegs(allocated);
 
   // Grava a viagem como rascunho (ou atualiza a existente)
-  const title = allocated.length === 1 ? allocated[0].city : allocated.length <= 3 ? allocated.map((d) => d.city).join(", ").replace(/, ([^,]*)$/, " e $1") : `${allocated[0].country ?? allocated[0].city} em ${totalDays} dias`;
+  const title = found.length === 1 && expandedFrom.length === 1 ? expandedFrom[0] : allocated.length === 1 ? allocated[0].city : allocated.length <= 3 ? allocated.map((d) => d.city).join(", ").replace(/, ([^,]*)$/, " e $1") : `${allocated[0].country ?? allocated[0].city} em ${totalDays} dias`;
   let tripId = b.tripId;
   if (tripId) {
     const { error } = await supabase.from("trips").update({ start_date: b.start_date, end_date: b.end_date, travelers_adults: b.adults, travelers_children: b.children, children_ages: b.children_ages, pace: b.pace, origin_city: b.origin_city ?? null }).eq("id", tripId);
@@ -123,5 +155,6 @@ export async function POST(req: Request) {
     legs,
     ai,
     aiError,
+    regionNote,
   });
 }

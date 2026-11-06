@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/supabase/server";
 import { PageTitle, Pill } from "@/components/ui";
 import { tripPeriod } from "@/lib/labels";
 import { DownloadPdfButton } from "@/components/export/print-button";
+import { RegenerateTrip } from "@/components/admin/regenerate-trip";
 
 export const metadata = { title: "Roteiros" };
 export const dynamic = "force-dynamic";
@@ -114,6 +115,7 @@ export default async function AdminTrips({ searchParams }: { searchParams: Promi
                     <div className="flex flex-wrap justify-end gap-2">
                       <a href={`/app/viagem/${r.id}/pdf`} target="_blank" rel="noreferrer" className="btn-secondary btn-sm"><ExternalLink size={14} /> Ver</a>
                       <DownloadPdfButton tripId={r.id} title={r.title} />
+                      <RegenerateTrip tripId={r.id} title={r.title} />
                     </div>
                   ) : <span className="text-xs text-gray">sem dias montados</span>}
                 </td>

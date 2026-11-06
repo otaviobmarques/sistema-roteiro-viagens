@@ -32,6 +32,7 @@ export function PreviewClient(props: {
   const { trip } = props;
   const [ai, setAi] = useState<AIPreview>(props.ai);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [regionNote, setRegionNote] = useState<string | null>(null);
   const [dests, setDests] = useState(props.destinations);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -45,6 +46,7 @@ export function PreviewClient(props: {
       const d = JSON.parse(cached);
       if (d.ai) setAi(d.ai);
       if (d.aiError) setAiError(d.aiError);
+      if (d.regionNote) setRegionNote(d.regionNote);
     }
   }, [trip.id]);
 
@@ -153,6 +155,7 @@ export function PreviewClient(props: {
             <div className="rounded-xl bg-white/15 px-4 py-2 text-center"><div className="mono text-xl font-semibold">{props.legs.length}</div><div className="text-[10px] font-semibold uppercase tracking-wider">trechos</div></div>
           </div>
 
+          {regionNote && <Notice>{regionNote}</Notice>}
           <div className="card p-4">
             <div className="label mb-2">Divisão dos {total} dias {saving && <span className="normal-case text-gray">· salvando…</span>}</div>
             <div className="flex overflow-hidden rounded-lg text-[11px] font-semibold text-white">
