@@ -19,9 +19,9 @@ export function Credits({ dark = false, size = "lg", className = "" }: { dark?: 
 /** Crédito curto dentro do app. */
 export function SystemCredit({ className = "" }: { className?: string }) {
   return (
-    <div className={`flex flex-col items-center gap-1 text-[10px] text-gray ${className}`}>
-      <span>Sistema desenvolvido por</span>
-      <DommaLogo className="h-6" />
+    <div className={`flex items-center justify-center gap-2 text-[10px] text-gray ${className}`}>
+      <span>Sistema por</span>
+      <DommaLogo className="h-5" />
     </div>
   );
 }
