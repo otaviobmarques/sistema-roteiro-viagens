@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Credits } from "@/components/credits";
 import { Logo, PinoFull, PinoAvatar } from "@/components/ui";
 import { InstallButton } from "@/components/pwa";
 import { Route, TrendingUp, Star, Users, ShieldCheck, Sparkles, Wallet, Sun } from "lucide-react";
@@ -131,9 +132,12 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-8 text-xs text-gray">
-        <span>Rotta 365 · Roteiros de viagem</span>
-        <span>Mapas © OpenStreetMap · <Link href="/termos" className="underline">Termos</Link> · <Link href="/privacidade" className="underline">Privacidade (LGPD)</Link></span>
+      <footer className="mx-auto max-w-6xl space-y-4 px-4 py-8 text-xs text-gray">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span>Rotta 365 · Roteiros de viagem</span>
+          <span>Mapas © OpenStreetMap · <Link href="/termos" className="underline">Termos</Link> · <Link href="/privacidade" className="underline">Privacidade (LGPD)</Link></span>
+        </div>
+        <Credits className="border-t border-line pt-4" />
       </footer>
     </div>
   );

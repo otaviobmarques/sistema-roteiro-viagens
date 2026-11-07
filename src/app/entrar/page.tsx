@@ -1,5 +1,6 @@
 import { Logo, PinoFull } from "@/components/ui";
 import { LoginForm } from "./form";
+import { Credits } from "@/components/credits";
 
 export const metadata = { title: "Entrar" };
 
@@ -23,6 +24,7 @@ export default async function Entrar({ searchParams }: { searchParams: Promise<{
         {sp.suspensa && <p className="mb-3 rounded-xl bg-danger-50 px-3 py-2 text-sm text-danger">Sua conta está suspensa. Fale com o suporte.</p>}
         {sp.erro && <p className="mb-3 rounded-xl bg-danger-50 px-3 py-2 text-sm text-danger">Não foi possível entrar: {sp.erro}</p>}
         <LoginForm next={sp.next || "/app"} initialMode={sp.modo === "criar" ? "criar" : "entrar"} />
+        <Credits className="mt-6 justify-center" />
       </div>
     </div>
   );

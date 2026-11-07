@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Logo, PinoAvatar, Avatar } from "./ui";
 import { InstallButton } from "./pwa";
+import { SystemCredit } from "./credits";
 
 type ShellProps = {
   children: React.ReactNode;
@@ -93,6 +94,7 @@ export function AppShell({ children, userName, avatarUrl, credits, unread, isAdm
           <Avatar name={userName} url={avatarUrl} size={30} />
           <div className="truncate text-sm font-semibold">{userName}</div>
         </Link>
+        <SystemCredit className="pt-1" />
       </div>
     </nav>
   );
