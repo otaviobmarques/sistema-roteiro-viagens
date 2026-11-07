@@ -11,11 +11,12 @@ export function DommaMark({ dark = false, className = "" }: { dark?: boolean; cl
 }
 
 /** Rodapé completo (site): Agência RedBOX + Domma Tecnologia. */
-export function Credits({ dark = false, className = "" }: { dark?: boolean; className?: string }) {
+export function Credits({ dark = false, size = "lg", className = "" }: { dark?: boolean; size?: "lg" | "md"; className?: string }) {
+  const h = size === "lg" ? "h-9" : "h-7";
   return (
-    <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] ${dark ? "text-white/70" : "text-gray"} ${className}`}>
-      <span className="inline-flex items-center gap-2">Site por <img src={dark ? "/brand/redbox-branco.png" : "/brand/redbox.png"} alt="Agência RedBOX" className="h-3.5 w-auto" /></span>
-      <span className="inline-flex items-center gap-2">Sistema desenvolvido por <DommaMark dark={dark} className="text-[13px]" /></span>
+    <div className={`flex flex-wrap items-center gap-x-10 gap-y-4 text-xs ${dark ? "text-white/70" : "text-gray"} ${className}`}>
+      <span className="inline-flex items-center gap-3">Site por <img src={dark ? "/brand/redbox-branco.png" : "/brand/redbox.png"} alt="Agência RedBOX" className={`${h} w-auto`} /></span>
+      <span className="inline-flex items-center gap-3">Sistema desenvolvido por <DommaMark dark={dark} className={size === "lg" ? "text-2xl" : "text-xl"} /></span>
     </div>
   );
 }
